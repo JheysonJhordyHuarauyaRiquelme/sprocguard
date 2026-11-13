@@ -1,0 +1,18 @@
+# Configuration for the demo database in CI. The sprocguard GitHub Action
+# replaces [connection] with the throwaway SQL Server it starts, so only the
+# safety rules below matter there.
+
+[connection]
+server = "localhost"
+user = "sa"
+database = "DemoShop"
+
+[safety]
+allowed_databases = ["DemoShop"]
+max_rows_per_table = 5000
+allow_external_side_effects = false
+lock_timeout_seconds = 10
+
+[storage]
+baseline_dir = ".sprocguard/baselines"
+tsqlt_dir = ".sprocguard/tsqlt"

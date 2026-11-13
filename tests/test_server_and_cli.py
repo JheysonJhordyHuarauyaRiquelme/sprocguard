@@ -59,3 +59,51 @@ def test_tool_errors_reach_the_agent(tmp_path, monkeypatch):
     with pytest.raises(Exception) as info:
         asyncio.run(server.call_tool("inspect_procedure", {"procedure": "dbo.x"}))
     assert "Configuration file not found" in str(info.value)
+
+
+CONFIG_WITH_ODBC = """
+[connection]
+odbc = "Driver={ODBC Driver 18 for SQL Server};Server=dev-box;Trusted_Connection=yes"
+[safety]
+allowed_databases = ["DemoShop"]
+"""
+
+
+def test_environment_can_switch_the_connection_to_a_ci_server(tmp_path, monkeypatch):
+    path = tmp_path / "sprocguard.toml"
+    path.write_text(CONFIG_WITH_ODBC, encoding="utf-8")
+    monkeypatch.setenv("SPROCGUARD_SERVER", "localhost")
+    monkeypatch.setenv("SPROCGUARD_PORT", "14330")
+    monkeypatch.setenv("SPROCGUARD_USER", "sa")
+    monkeypatch.setenv("SPROCGUARD_DATABASE", "DemoShop")
+
+    connection = load_config(path).connection
+
+    assert connection.driver == "pymssql"
+    assert (connection.server, connection.port, connection.user) == ("localhost", 14330, "sa")
+    assert connection.database == "DemoShop"
+    assert connection.password_env == "SPROCGUARD_PASSWORD"
+    assert load_config(path).safety.allowed_databases == ["DemoShop"]
+
+
+def test_environment_can_replace_the_odbc_string(tmp_path, monkeypatch):
+    path = tmp_path / "sprocguard.toml"
+    path.write_text(CONFIG_WITH_ODBC, encoding="utf-8")
+    monkeypatch.setenv("SPROCGUARD_ODBC", "Driver={x};Server=ci")
+    assert load_config(path).connection.odbc == "Driver={x};Server=ci"
+
+
+@pytest.mark.parametrize(
+    ("env", "message"),
+    [
+        ({"SPROCGUARD_ODBC": "x", "SPROCGUARD_SERVER": "y"}, "not both"),
+        ({"SPROCGUARD_SERVER": "y", "SPROCGUARD_PORT": "abc"}, "must be a number"),
+    ],
+)
+def test_invalid_environment_overrides(tmp_path, monkeypatch, env, message):
+    path = tmp_path / "sprocguard.toml"
+    path.write_text(CONFIG_WITH_ODBC, encoding="utf-8")
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    with pytest.raises(ConfigError, match=message):
+        load_config(path)

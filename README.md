@@ -4,6 +4,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/sprocguard.svg)](https://pypi.org/project/sprocguard/)
 [![CI](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/ci.yml/badge.svg)](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/ci.yml)
+[![Integration](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/integration.yml/badge.svg)](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/integration.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/blob/main/LICENSE)
 [![Python 3.11+](https://img.shields.io/pypi/pyversions/sprocguard.svg)](https://pypi.org/project/sprocguard/)
 
@@ -152,13 +153,70 @@ sprocguard inspect <proc> [--definition]          describe a procedure and its r
 sprocguard suggest <proc>                         suggest parameter values
 sprocguard capture <proc> --cases cases.json      capture a baseline  [--watch schema.table ...] [--overwrite]
 sprocguard verify [<proc> ...]                    verify one, several or all baselines (exit 2 if behavior changed)
+                                                  [--markdown-report report.md]
 sprocguard tsqlt <proc>                           generate tSQLt tests (read-only procedures)
 sprocguard list                                   list baselines
 sprocguard serve                                  run the MCP server (stdio)
 ```
 
-Add `--json` for machine-readable output. In CI, run `sprocguard verify` against a test
-database restored from a known backup: the job fails when any procedure changed behavior.
+Add `--json` for machine-readable output.
+
+## Verify on every pull request (GitHub Action)
+
+This repository is also a GitHub Action. It starts a throwaway SQL Server in Docker, builds
+your database from the scripts in your repository, and runs `sprocguard verify` against the
+baselines you committed. The pull request fails when a procedure changed behavior, and the
+job summary lists every difference.
+
+```yaml
+name: Stored procedures
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  sprocguard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: JheysonJhordyHuarauyaRiquelme/sprocguard@v0.2.0
+        with:
+          setup-scripts: |
+            db/schema.sql
+            db/seed.sql
+            db/procedures/*.sql
+```
+
+To set it up:
+
+1. Keep scripts that build a development copy of your database (tables, test data and
+   procedures) in the repository. The action runs them in order with `sqlcmd`.
+2. Build that database on your machine from the same scripts and capture the baselines
+   there, so they describe the same data the action will build.
+3. Commit the baselines (`.sprocguard/baselines`) and a sprocguard configuration file. The
+   action replaces its `[connection]` with the throwaway server, so it does not need your
+   real connection string; point `config` at a separate file such as `sprocguard.ci.toml`
+   if you prefer. The `[safety]` rules still apply.
+
+| Input | Default | What it does |
+| --- | --- | --- |
+| `config` | `sprocguard.toml` | Configuration file in your repository |
+| `setup-scripts` | | Scripts that build the database, one per line; globs allowed |
+| `procedures` | every baseline | Procedures to verify, separated by spaces or new lines |
+| `database` | first of `allowed_databases` | Database to create and verify |
+| `verify` | `true` | Set to `false` to only prepare the server for your own `sprocguard` steps |
+| `start-sql-server` | `true` | Set to `false` to reuse the server started by an earlier step |
+| `sql-server-image` | `mcr.microsoft.com/mssql/server:2022-latest` | SQL Server image |
+
+Outputs: `passed` (`true` or `false`) and `report` (path to the Markdown report). The action
+needs a Linux runner with Docker, such as `ubuntu-latest`. It connects with pymssql; if a
+baseline captured with ODBC differs only in how a value is formatted, please open an issue.
+The [integration workflow](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/blob/main/.github/workflows/integration.yml)
+of this repository uses the action on the demo database and is a complete example.
+
+To run sprocguard against another server in CI, set environment variables instead of
+editing the configuration: `SPROCGUARD_ODBC` (an ODBC connection string), or
+`SPROCGUARD_SERVER`, `SPROCGUARD_PORT`, `SPROCGUARD_USER`, `SPROCGUARD_DATABASE` and
+`SPROCGUARD_PASSWORD` (a pymssql connection).
 
 ## tSQLt export
 
@@ -179,9 +237,10 @@ For read-only procedures, `sprocguard tsqlt <proc>` writes a `.sql` file with on
 - [ ] tSQLt export with `FakeTable` for procedures that modify data
 - [ ] Table-valued parameters
 - [ ] `sprocguard impact <table>`: verify every procedure that uses a table you are changing
-- [ ] GitHub Action that verifies procedures on every pull request
+- [ ] Verify a pull request without committed baselines: capture on the base branch, verify on the head branch
 - [ ] PostgreSQL support
 - [x] Publish to PyPI and the MCP Registry
+- [x] GitHub Action that verifies procedures on every pull request
 
 ## Contributing
 
@@ -190,8 +249,9 @@ to set up the project, run the checks and open a pull request, and the
 [changelog](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/blob/main/CHANGELOG.md) for what changed in each version.
 Security problems: please report them privately as described in [SECURITY.md](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/blob/main/SECURITY.md).
 
-The test suite uses an in-memory imitation of SQL Server (`tests/fakedb.py`), so it runs
-anywhere; real-database testing uses `examples/demo.sql`.
+The unit tests use an in-memory imitation of SQL Server (`tests/fakedb.py`), so they run
+anywhere. The integration workflow runs the demo in `examples/` against a real SQL Server
+on every change.
 
 ## License
 

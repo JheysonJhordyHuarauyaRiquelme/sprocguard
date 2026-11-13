@@ -152,6 +152,20 @@ def build_db() -> FakeDatabase:
     return db
 
 
+@pytest.fixture(autouse=True)
+def _isolated_environment(monkeypatch):
+    """Tests must not pick up connection overrides from the machine running them."""
+    for name in (
+        "SPROCGUARD_CONFIG",
+        "SPROCGUARD_ODBC",
+        "SPROCGUARD_SERVER",
+        "SPROCGUARD_PORT",
+        "SPROCGUARD_USER",
+        "SPROCGUARD_DATABASE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture
 def db() -> FakeDatabase:
     return build_db()

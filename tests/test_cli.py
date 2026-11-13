@@ -79,3 +79,15 @@ def test_tsqlt_generation_from_the_cli(cli, capsys):
     assert main(["--json", "tsqlt", "dbo.usp_GetCustomerOrders"]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result["file"].endswith(".sql")
+
+
+def test_verify_writes_a_markdown_report(cli, db, tmp_path, capsys):
+    assert main(["capture", "dbo.usp_PlaceOrder", "--cases", str(cli)]) == 0
+    db.procs["dbo.usp_placeorder"].body = make_place_order_body(vip_discount=Decimal("0.95"))
+    report = tmp_path / "report.md"
+
+    assert main(["verify", "--markdown-report", str(report)]) == 2
+    text = report.read_text(encoding="utf-8")
+    assert text.startswith("## sprocguard")
+    assert "| `dbo.usp_PlaceOrder` | **Changed** |" in text
+    assert "VIP customer gets 10% off" in text

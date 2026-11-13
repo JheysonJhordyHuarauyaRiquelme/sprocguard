@@ -64,6 +64,29 @@ sqlcmd -S localhost -E -i examples/regression.sql  # un refactor "inofensivo"
 sprocguard verify dbo.usp_PlaceOrder                # detecta el cambio de redondeo (código de salida 2)
 ```
 
+## Verificar en cada pull request (GitHub Action)
+
+Este repositorio también es una GitHub Action. Levanta un SQL Server temporal en Docker,
+construye tu base de datos con los scripts de tu repositorio y ejecuta `sprocguard verify`
+contra los baselines que guardaste. El pull request falla si un procedure cambió su
+comportamiento, y el resumen del job muestra cada diferencia.
+
+```yaml
+- uses: actions/checkout@v7
+- uses: JheysonJhordyHuarauyaRiquelme/sprocguard@v0.2.0
+  with:
+    setup-scripts: |
+      db/schema.sql
+      db/seed.sql
+      db/procedures/*.sql
+```
+
+Para usarla, guarda en el repositorio los scripts que crean una copia de desarrollo de tu base
+(tablas, datos de prueba y procedures), captura los baselines en tu máquina sobre una base
+creada con esos mismos scripts y sube la carpeta `.sprocguard/baselines` junto con un archivo
+de configuración. La action reemplaza la conexión por la del servidor temporal; las reglas de
+`[safety]` se siguen aplicando. Todas las opciones están en el [README en inglés](README.md#verify-on-every-pull-request-github-action).
+
 ## Con agentes de IA (MCP)
 
 sprocguard incluye un servidor MCP y una [skill](skills/sprocguard/SKILL.md) que le enseña al
