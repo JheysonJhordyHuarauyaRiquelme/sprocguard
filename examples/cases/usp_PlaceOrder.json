@@ -1,0 +1,7 @@
+[
+  { "name": "regular customer buys 2 coffees", "params": { "@CustomerId": 2, "@ProductId": 10, "@Quantity": 2 } },
+  { "name": "VIP customer gets 10% off",       "params": { "@CustomerId": 1, "@ProductId": 10, "@Quantity": 3 } },
+  { "name": "VIP discount with odd cents",     "params": { "@CustomerId": 1, "@ProductId": 10, "@Quantity": 7 } },
+  { "name": "buys exactly the last units",     "params": { "@CustomerId": 2, "@ProductId": 11, "@Quantity": 2 } },
+  { "name": "insufficient stock raises error", "params": { "@CustomerId": 2, "@ProductId": 11, "@Quantity": 5 } }
+]

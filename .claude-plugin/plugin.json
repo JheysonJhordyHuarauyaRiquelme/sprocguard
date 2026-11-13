@@ -1,0 +1,12 @@
+{
+  "name": "sprocguard",
+  "version": "0.1.0",
+  "description": "Safety net for SQL Server stored procedures: capture what a procedure does before an AI agent changes it, then verify nothing changed by accident.",
+  "author": {
+    "name": "Jheyson Huarauya Riquelme"
+  },
+  "homepage": "https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard",
+  "repository": "https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard",
+  "license": "MIT",
+  "keywords": ["sql-server", "t-sql", "stored-procedures", "tsqlt", "testing", "mcp"]
+}

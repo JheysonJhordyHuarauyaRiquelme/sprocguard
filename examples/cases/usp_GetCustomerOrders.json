@@ -1,0 +1,5 @@
+[
+  { "name": "customer with orders",      "params": { "@CustomerId": 1 } },
+  { "name": "customer without orders",   "params": { "@CustomerId": 2 } },
+  { "name": "unknown customer -> error", "params": { "@CustomerId": 99 } }
+]

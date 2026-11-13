@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+# Your local config usually holds a connection string; share a sample instead.
+sprocguard.toml
+# Baselines and tSQLt tests generated while trying the demo locally.
+.sprocguard/

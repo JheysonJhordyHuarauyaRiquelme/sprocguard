@@ -1,0 +1,13 @@
+{
+  "name": "sprocguard",
+  "owner": {
+    "name": "Jheyson Huarauya Riquelme"
+  },
+  "plugins": [
+    {
+      "name": "sprocguard",
+      "source": "./",
+      "description": "Safety net for SQL Server stored procedures (MCP server + skill)."
+    }
+  ]
+}
