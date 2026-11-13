@@ -1,5 +1,9 @@
 # sprocguard
 
+[![CI](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/ci.yml/badge.svg)](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+
 **A safety net for SQL Server stored procedures.**
 Capture what a procedure does *today*, let a human or an AI agent change it, and get a clear
 report of every behavior that changed — before it reaches production.
