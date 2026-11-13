@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-13
+
 ### Added
 - GitHub Action (`action.yml`): starts a throwaway SQL Server, builds the database from your
   scripts and fails the pull request when a procedure no longer matches its baseline.
@@ -37,6 +39,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - MCP server with six tools, an Agent Skill and a Claude Code plugin.
 - Every run happens inside a transaction that is always rolled back.
 
-[Unreleased]: https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/releases/tag/v0.1.0

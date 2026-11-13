@@ -109,7 +109,7 @@ Con [uv](https://docs.astral.sh/uv/) ni siquiera necesitas instalarlo antes: usa
 sprocguard también está en el [MCP Registry](https://registry.modelcontextprotocol.io) como
 `io.github.JheysonJhordyHuarauyaRiquelme/sprocguard`.
 
-## Limitaciones de la versión 0.1
+## Limitaciones
 
 - Aún no soporta parámetros con valores de tabla (table-valued parameters).
 - Las tablas que se modifican solo con SQL dinámico no se detectan solas; agrégalas con `--watch`.

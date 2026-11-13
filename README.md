@@ -224,7 +224,7 @@ For read-only procedures, `sprocguard tsqlt <proc>` writes a `.sql` file with on
 [tSQLt](https://tsqlt.org) test per case, using `tSQLt.AssertEqualsTable` and
 `tSQLt.ExpectException`. Volatile columns are left out of the comparison.
 
-## Limitations (0.1)
+## Limitations
 
 - Table-valued parameters are not supported yet.
 - Tables changed only through dynamic SQL are not detected automatically; add them with `--watch`.
