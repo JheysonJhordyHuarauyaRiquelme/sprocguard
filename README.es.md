@@ -93,6 +93,13 @@ sprocguard también está en el [MCP Registry](https://registry.modelcontextprot
 - Si el procedure falla, no se registran los result sets que devolvió antes del error (sí el error).
 - La exportación a tSQLt cubre procedures de solo lectura; para los que modifican datos usa `verify`.
 
+## Contribuir
+
+Las contribuciones son bienvenidas, en español o en inglés. En [CONTRIBUTING.md](CONTRIBUTING.md)
+está cómo preparar el proyecto, correr las verificaciones y abrir un pull request. Los cambios de
+cada versión están en el [CHANGELOG.md](CHANGELOG.md). Si encuentras un problema de seguridad,
+repórtalo en privado como indica [SECURITY.md](SECURITY.md).
+
 ## Licencia
 
 MIT

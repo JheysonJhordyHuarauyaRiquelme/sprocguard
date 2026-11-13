@@ -1,20 +1,23 @@
 import copy
 import json
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
-
 from conftest import PLACE_ORDER_CASES, make_place_order_body
-from sprocguard.capture import CaptureError, build_exec_batch, capture_baseline, clean_error, verify
+
 from sprocguard.analysis import inspect_procedure
+from sprocguard.capture import CaptureError, build_exec_batch, capture_baseline, clean_error, verify
 from sprocguard.db import SafetyError, check_allowed_database
 
 
 def test_exec_batch_uses_placeholders_and_output_variables(db):
     info = inspect_procedure(db, "dbo.usp_PlaceOrder")
     sql, values = build_exec_batch(info, {"CustomerId": 1, "@productid": 10, "@Quantity": 2})
-    assert "EXEC @__sg_rc = [dbo].[usp_PlaceOrder] @CustomerId = ?, @ProductId = ?, @Quantity = ?, " \
-           "@OrderId = @__sg_out3 OUTPUT;" in sql
+    assert (
+        "EXEC @__sg_rc = [dbo].[usp_PlaceOrder] @CustomerId = ?, @ProductId = ?, @Quantity = ?, "
+        "@OrderId = @__sg_out3 OUTPUT;" in sql
+    )
     assert values == [1, 10, 2]
     assert "Robert'); DROP" not in sql
     with pytest.raises(CaptureError, match="no parameter @Nope"):
@@ -33,7 +36,7 @@ def test_capture_leaves_data_untouched_and_learns_volatility(db, config):
     assert "dbo.Orders.OrderId" in volatile and "dbo.Orders.OrderDate" in volatile
     assert "dbo.AuditLog.At" in volatile
 
-    baseline = json.loads(open(result["baseline_file"], encoding="utf-8").read())
+    baseline = json.loads(Path(result["baseline_file"]).read_text(encoding="utf-8"))
     error_case = baseline["cases"][2]
     assert error_case["expected"]["error"] == "Insufficient stock"
     stock_change = baseline["cases"][0]["expected"]["tables"]["dbo.Products"]["updated"]
@@ -86,7 +89,9 @@ def test_stray_commit_inside_procedure_cannot_persist_changes(db, config):
 
 
 def test_blocked_procedure_is_refused(db, config):
-    db.procs["dbo.usp_placeorder"].definition += "\nEXEC msdb.dbo.sp_send_dbmail @recipients = 'boss@x.com';"
+    db.procs[
+        "dbo.usp_placeorder"
+    ].definition += "\nEXEC msdb.dbo.sp_send_dbmail @recipients = 'boss@x.com';"
     with pytest.raises(SafetyError, match="external_side_effect"):
         capture_baseline(db, config, "dbo.usp_PlaceOrder", PLACE_ORDER_CASES)
 
@@ -101,10 +106,16 @@ def test_clean_error_messages():
     class PyodbcLike(Exception):
         pass
 
-    exc = PyodbcLike("42000", "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Insufficient stock "
-                              "(50002) (SQLExecDirectW)")
+    exc = PyodbcLike(
+        "42000",
+        "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Insufficient stock "
+        "(50002) (SQLExecDirectW)",
+    )
     assert clean_error(exc) == "Insufficient stock"
-    pymssql_like = Exception(50002, b"Insufficient stockDB-Lib error message 20018, severity 16:\nGeneral SQL Server error")
+    pymssql_like = Exception(
+        50002,
+        b"Insufficient stockDB-Lib error message 20018, severity 16:\nGeneral SQL Server error",
+    )
     assert clean_error(pymssql_like) == "Insufficient stock"
 
 

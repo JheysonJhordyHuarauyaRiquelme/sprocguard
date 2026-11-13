@@ -15,8 +15,19 @@ from . import __version__
 from .analysis import ProcedureInfo, quote_name, strip_comments_and_strings
 from .config import Config
 
-_NUMERIC_TYPES = ("int", "bigint", "smallint", "tinyint", "bit", "decimal", "numeric",
-                  "money", "smallmoney", "float", "real")
+_NUMERIC_TYPES = (
+    "int",
+    "bigint",
+    "smallint",
+    "tinyint",
+    "bit",
+    "decimal",
+    "numeric",
+    "money",
+    "smallmoney",
+    "float",
+    "real",
+)
 _NUMBER = re.compile(r"^-?\d+(\.\d+)?([eE][-+]?\d+)?$")
 _ROWS_PER_INSERT = 500
 
@@ -35,9 +46,13 @@ def sql_literal(value: Any, sql_type: str | None = None) -> str:
         return repr(value)
     text = str(value)
     t = (sql_type or "").lower()
-    if t.startswith(("binary", "varbinary", "image", "rowversion", "timestamp")) and text.startswith("0x"):
+    if t.startswith(
+        ("binary", "varbinary", "image", "rowversion", "timestamp")
+    ) and text.startswith("0x"):
         return f"CONVERT(varbinary(max), '{text}', 1)"
-    if t.startswith(("datetime", "smalldatetime")) and not t.startswith(("datetime2", "datetimeoffset")):
+    if t.startswith(("datetime", "smalldatetime")) and not t.startswith(
+        ("datetime2", "datetimeoffset")
+    ):
         # datetime only keeps 3 fractional digits.
         text = re.sub(r"(\.\d{3})\d+$", r"\1", text)
     if t.startswith(_NUMERIC_TYPES) and _NUMBER.match(text):
@@ -59,7 +74,9 @@ def _test_name(case_name: str, used: set[str]) -> str:
     return name
 
 
-def exec_statement(info: ProcedureInfo, params: dict[str, Any], insert_into: str | None = None) -> list[str]:
+def exec_statement(
+    info: ProcedureInfo, params: dict[str, Any], insert_into: str | None = None
+) -> list[str]:
     """T-SQL lines that execute the procedure with literal parameter values."""
     lines: list[str] = []
     args: list[str] = []
@@ -78,18 +95,34 @@ def exec_statement(info: ProcedureInfo, params: dict[str, Any], insert_into: str
 
 def _uses_insert_exec(definition: str) -> bool:
     text = strip_comments_and_strings(definition)
-    return bool(re.search(r"\bINSERT\s+(INTO\s+)?[\w\[\].#@]+\s*(\([^)]*\)\s*)?EXEC(UTE)?\b", text, re.IGNORECASE))
+    return bool(
+        re.search(
+            r"\bINSERT\s+(INTO\s+)?[\w\[\].#@]+\s*(\([^)]*\)\s*)?EXEC(UTE)?\b", text, re.IGNORECASE
+        )
+    )
 
 
 def generate_tests(info: ProcedureInfo, baseline: dict[str, Any]) -> dict[str, Any]:
     """Build the tSQLt script. Returns ``{"sql": str, "tests": int, "skipped": [...], "supported": bool}``."""
     if info.writes:
-        return {"supported": False, "sql": "", "tests": 0, "skipped": [],
-                "reason": (f"{info.full_name} modifies tables ({', '.join(info.writes)}). tSQLt generation in 0.1 "
-                           f"only covers read-only procedures; run 'sprocguard verify' in CI for this one.")}
+        return {
+            "supported": False,
+            "sql": "",
+            "tests": 0,
+            "skipped": [],
+            "reason": (
+                f"{info.full_name} modifies tables ({', '.join(info.writes)}). tSQLt generation in 0.1 "
+                f"only covers read-only procedures; run 'sprocguard verify' in CI for this one."
+            ),
+        }
     if _uses_insert_exec(info.definition):
-        return {"supported": False, "sql": "", "tests": 0, "skipped": [],
-                "reason": "The procedure uses INSERT ... EXEC, which tSQLt tests cannot nest."}
+        return {
+            "supported": False,
+            "sql": "",
+            "tests": 0,
+            "skipped": [],
+            "reason": "The procedure uses INSERT ... EXEC, which tSQLt tests cannot nest.",
+        }
 
     test_class = re.sub(r"\W", "_", f"sprocguard_{info.schema}_{info.name}")
     shape = info.first_result_set
@@ -118,7 +151,9 @@ def generate_tests(info: ProcedureInfo, baseline: dict[str, Any]) -> dict[str, A
                 body.append("EXEC tSQLt.ExpectException;")
             else:
                 pattern = "%" + like_escape(expected["error"]) + "%"
-                body.append(f"EXEC tSQLt.ExpectException @ExpectedMessagePattern = {sql_string(pattern)};")
+                body.append(
+                    f"EXEC tSQLt.ExpectException @ExpectedMessagePattern = {sql_string(pattern)};"
+                )
             body += exec_statement(info, params)
         elif not expected.get("result_sets"):
             body.append("EXEC tSQLt.ExpectNoException;")
@@ -130,17 +165,25 @@ def generate_tests(info: ProcedureInfo, baseline: dict[str, Any]) -> dict[str, A
             rs = expected["result_sets"][0]
             meta = (learned.get("result_sets") or [{}])[0]
             if meta.get("unstable"):
-                skipped.append({"case": case["name"], "reason": "result set is not stable between runs"})
+                skipped.append(
+                    {"case": case["name"], "reason": "result set is not stable between runs"}
+                )
                 continue
             if not shape or [c.name for c in shape] != rs["columns"]:
-                skipped.append({"case": case["name"],
-                                "reason": "SQL Server could not describe the result set columns"})
+                skipped.append(
+                    {
+                        "case": case["name"],
+                        "reason": "SQL Server could not describe the result set columns",
+                    }
+                )
                 continue
             types = {c.name: c.type for c in shape}
             volatile = set(meta.get("volatile_columns", []))
             keep = [c for c in rs["columns"] if c not in volatile]
             if not keep:
-                skipped.append({"case": case["name"], "reason": "every column changes between runs"})
+                skipped.append(
+                    {"case": case["name"], "reason": "every column changes between runs"}
+                )
                 continue
             cols_decl = ", ".join(f"{quote_name(c.name)} {c.type} NULL" for c in shape)
             keep_list = ", ".join(quote_name(c) for c in keep)
@@ -150,14 +193,18 @@ def generate_tests(info: ProcedureInfo, baseline: dict[str, Any]) -> dict[str, A
             idx = [rs["columns"].index(c) for c in keep]
             rows = rs["rows"]
             for start in range(0, len(rows), _ROWS_PER_INSERT):
-                chunk = rows[start:start + _ROWS_PER_INSERT]
+                chunk = rows[start : start + _ROWS_PER_INSERT]
                 values = ",\n        ".join(
-                    "(" + ", ".join(sql_literal(row[j], types[rs["columns"][j]]) for j in idx) + ")" for row in chunk)
+                    "(" + ", ".join(sql_literal(row[j], types[rs["columns"][j]]) for j in idx) + ")"
+                    for row in chunk
+                )
                 body.append(f"INSERT INTO #Expected ({keep_list}) VALUES\n        {values};")
             body.append(f"SELECT {keep_list} INTO #ActualCompared FROM #Actual;")
             note = f" Ignored volatile columns: {', '.join(sorted(volatile))}." if volatile else ""
-            body.append(f"EXEC tSQLt.AssertEqualsTable '#Expected', '#ActualCompared', "
-                        f"@Message = {sql_string('Result changed for case: ' + case['name'] + '.' + note)};")
+            body.append(
+                f"EXEC tSQLt.AssertEqualsTable '#Expected', '#ActualCompared', "
+                f"@Message = {sql_string('Result changed for case: ' + case['name'] + '.' + note)};"
+            )
 
         indented = "\n".join("    " + line.replace("\n", "\n    ") for line in body)
         blocks.append(
@@ -165,9 +212,18 @@ def generate_tests(info: ProcedureInfo, baseline: dict[str, Any]) -> dict[str, A
             f"    -- Case: {case['name']}\n{indented}\nEND;\nGO\n"
         )
 
-    sql = "\n".join(header) + "\n".join(blocks) + (
-        f"\n-- Run with: EXEC tSQLt.Run {sql_string(test_class)};\n" if blocks else "")
-    return {"supported": True, "sql": sql, "tests": len(blocks), "skipped": skipped, "test_class": test_class}
+    sql = (
+        "\n".join(header)
+        + "\n".join(blocks)
+        + (f"\n-- Run with: EXEC tSQLt.Run {sql_string(test_class)};\n" if blocks else "")
+    )
+    return {
+        "supported": True,
+        "sql": sql,
+        "tests": len(blocks),
+        "skipped": skipped,
+        "test_class": test_class,
+    }
 
 
 def write_tests(config: Config, info: ProcedureInfo, baseline: dict[str, Any]) -> dict[str, Any]:

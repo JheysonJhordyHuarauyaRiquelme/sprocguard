@@ -111,7 +111,9 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
             "[safety].allowed_databases is empty. List the development databases "
             "sprocguard may use; it refuses to run anywhere else."
         )
-    return Config(connection=connection, safety=safety, storage=storage, root=config_file.parent.resolve())
+    return Config(
+        connection=connection, safety=safety, storage=storage, root=config_file.parent.resolve()
+    )
 
 
 SAMPLE_CONFIG = """\

@@ -35,9 +35,12 @@ def _key(value: Any) -> str:
 # --------------------------------------------------------------------------------------
 
 
-def diff_table(before: list[dict[str, Any]], after: list[dict[str, Any]], key_columns: list[str]) -> dict[str, Any]:
+def diff_table(
+    before: list[dict[str, Any]], after: list[dict[str, Any]], key_columns: list[str]
+) -> dict[str, Any]:
     """Describe how a table changed between two snapshots."""
     if key_columns:
+
         def k(row: dict[str, Any]) -> str:
             return _key([row.get(c) for c in key_columns])
 
@@ -48,8 +51,11 @@ def diff_table(before: list[dict[str, Any]], after: list[dict[str, Any]], key_co
         updated = []
         for x in old:
             if x in new and old[x] != new[x]:
-                changes = {c: [old[x].get(c), new[x].get(c)] for c in sorted(set(old[x]) | set(new[x]))
-                           if old[x].get(c) != new[x].get(c)}
+                changes = {
+                    c: [old[x].get(c), new[x].get(c)]
+                    for c in sorted(set(old[x]) | set(new[x]))
+                    if old[x].get(c) != new[x].get(c)
+                }
                 updated.append({"key": {c: old[x].get(c) for c in key_columns}, "changes": changes})
     else:
         old_count = Counter(_key(r) for r in before)
@@ -97,8 +103,12 @@ def learn_rows(a: list[list[Any]], b: list[list[Any]]) -> tuple[set[int], bool] 
     if _sorted(a) == _sorted(b):
         return set(), False
     width = max((len(r) for r in a), default=0)
-    volatile = {j for i in range(len(a)) for j in range(width)
-                if j >= len(a[i]) or j >= len(b[i]) or a[i][j] != b[i][j]}
+    volatile = {
+        j
+        for i in range(len(a))
+        for j in range(width)
+        if j >= len(a[i]) or j >= len(b[i]) or a[i][j] != b[i][j]
+    }
     sa, sb = _strip(a, volatile), _strip(b, volatile)
     if sa == sb:
         return volatile, True
@@ -133,7 +143,7 @@ def _parse_time(value: Any) -> _dt.datetime | _dt.date | None:
     except ValueError:
         return None
     if parsed.tzinfo is not None:
-        parsed = parsed.astimezone(_dt.timezone.utc).replace(tzinfo=None)
+        parsed = parsed.astimezone(_dt.UTC).replace(tzinfo=None)
     return parsed
 
 
@@ -172,14 +182,21 @@ def clock_columns(run: dict[str, Any]) -> dict[str, Any]:
         if _is_now(value, windows):
             found["scalars"].add(f"output:{name}")
     for i, rs in enumerate(run.get("result_sets", [])):
-        cols = {rs["columns"][j] for row in rs["rows"] for j, v in enumerate(row) if _is_now(v, windows)}
+        cols = {
+            rs["columns"][j] for row in rs["rows"] for j, v in enumerate(row) if _is_now(v, windows)
+        }
         if cols:
             found["result_sets"][i] = cols
     for table, diff in (run.get("tables") or {}).items():
         if diff.get("skipped"):
             continue
         cols = {c for row in diff["inserted"] for c, v in row.items() if _is_now(v, windows)}
-        cols |= {c for u in diff["updated"] for c, (_old, new) in u["changes"].items() if _is_now(new, windows)}
+        cols |= {
+            c
+            for u in diff["updated"]
+            for c, (_old, new) in u["changes"].items()
+            if _is_now(new, windows)
+        }
         if cols:
             found["tables"][table] = cols
     return found
@@ -219,21 +236,27 @@ def _learn_from_two_runs(run1: dict[str, Any], run2: dict[str, Any]) -> dict[str
 
     sets1, sets2 = run1.get("result_sets", []), run2.get("result_sets", [])
     if len(sets1) != len(sets2):
-        problems.append(f"The number of result sets changed between runs ({len(sets1)} vs {len(sets2)}).")
-    for i, (s1, s2) in enumerate(zip(sets1, sets2)):
+        problems.append(
+            f"The number of result sets changed between runs ({len(sets1)} vs {len(sets2)})."
+        )
+    for i, (s1, s2) in enumerate(zip(sets1, sets2, strict=False)):
         if s1["columns"] != s2["columns"]:
             problems.append(f"Result set #{i + 1} has different columns between runs.")
             result_meta.append({"volatile_columns": [], "ordered": False})
             continue
         learned = learn_rows(s1["rows"], s2["rows"])
         if learned is None:
-            problems.append(f"Result set #{i + 1} returned different rows between runs "
-                            f"({len(s1['rows'])} vs {len(s2['rows'])}); it may depend on time, randomness "
-                            f"or TOP without ORDER BY.")
+            problems.append(
+                f"Result set #{i + 1} returned different rows between runs "
+                f"({len(s1['rows'])} vs {len(s2['rows'])}); it may depend on time, randomness "
+                f"or TOP without ORDER BY."
+            )
             result_meta.append({"volatile_columns": [], "ordered": False, "unstable": True})
             continue
         vol, ordered = learned
-        result_meta.append({"volatile_columns": [s1["columns"][j] for j in sorted(vol)], "ordered": ordered})
+        result_meta.append(
+            {"volatile_columns": [s1["columns"][j] for j in sorted(vol)], "ordered": ordered}
+        )
 
     tables1, tables2 = run1.get("tables", {}), run2.get("tables", {})
     for table in sorted(set(tables1) | set(tables2)):
@@ -245,8 +268,10 @@ def _learn_from_two_runs(run1: dict[str, Any], run2: dict[str, Any]) -> dict[str
             cols = _columns_of(t1[part], t2[part])
             learned = learn_rows(_dict_rows(t1[part], cols), _dict_rows(t2[part], cols))
             if learned is None:
-                problems.append(f"{table}: {part} rows differ between runs "
-                                f"({len(t1[part])} vs {len(t2[part])}).")
+                problems.append(
+                    f"{table}: {part} rows differ between runs "
+                    f"({len(t1[part])} vs {len(t2[part])})."
+                )
                 continue
             vol_cols.update(cols[j] for j in learned[0])
         upd1 = {_key(u["key"]): u["changes"] for u in t1["updated"]}
@@ -290,7 +315,9 @@ def _multiset_diff(expected: list[Any], actual: list[Any]) -> tuple[list[Any], l
     return missing, unexpected
 
 
-def compare_run(expected: dict[str, Any], learned: dict[str, Any], actual: dict[str, Any]) -> list[str]:
+def compare_run(
+    expected: dict[str, Any], learned: dict[str, Any], actual: dict[str, Any]
+) -> list[str]:
     """Return human-readable differences between the expected run and a new one (empty = same behavior)."""
     diffs: list[str] = []
     vs = set(learned.get("volatile_scalars", []))
@@ -298,8 +325,10 @@ def compare_run(expected: dict[str, Any], learned: dict[str, Any], actual: dict[
     exp_err, act_err = expected.get("error"), actual.get("error")
     if "error" in vs:
         if bool(exp_err) != bool(act_err):
-            diffs.append(f"Error behavior changed: expected {'an error' if exp_err else 'success'}, "
-                         f"got {_fmt(act_err) if act_err else 'success'}.")
+            diffs.append(
+                f"Error behavior changed: expected {'an error' if exp_err else 'success'}, "
+                f"got {_fmt(act_err) if act_err else 'success'}."
+            )
     elif exp_err != act_err:
         if exp_err and act_err:
             diffs.append(f"Error message changed: {_fmt(exp_err)} -> {_fmt(act_err)}")
@@ -309,42 +338,56 @@ def compare_run(expected: dict[str, Any], learned: dict[str, Any], actual: dict[
             diffs.append(f"The procedure now fails: {_fmt(act_err)}")
 
     if "return_value" not in vs and expected.get("return_value") != actual.get("return_value"):
-        diffs.append(f"Return value changed: {_fmt(expected.get('return_value'))} -> {_fmt(actual.get('return_value'))}")
+        diffs.append(
+            f"Return value changed: {_fmt(expected.get('return_value'))} -> {_fmt(actual.get('return_value'))}"
+        )
     for name, value in expected.get("outputs", {}).items():
         if f"output:{name}" not in vs and actual.get("outputs", {}).get(name) != value:
-            diffs.append(f"Output parameter {name} changed: {_fmt(value)} -> {_fmt(actual.get('outputs', {}).get(name))}")
+            diffs.append(
+                f"Output parameter {name} changed: {_fmt(value)} -> {_fmt(actual.get('outputs', {}).get(name))}"
+            )
 
     exp_sets, act_sets = expected.get("result_sets", []), actual.get("result_sets", [])
     if len(exp_sets) != len(act_sets):
         diffs.append(f"Number of result sets changed: {len(exp_sets)} -> {len(act_sets)}")
     metas = learned.get("result_sets", [])
-    for i, (es, as_) in enumerate(zip(exp_sets, act_sets)):
+    for i, (es, as_) in enumerate(zip(exp_sets, act_sets, strict=False)):
         label = f"Result set #{i + 1}"
-        meta = metas[i] if i < len(metas) else {"volatile_columns": [], "ordered": False}
+        meta: dict[str, Any] = (
+            metas[i] if i < len(metas) else {"volatile_columns": [], "ordered": False}
+        )
         if meta.get("unstable"):
             continue
         if es["columns"] != as_["columns"]:
-            diffs.append(f"{label}: columns changed {_fmt(es['columns'])} -> {_fmt(as_['columns'])}")
+            diffs.append(
+                f"{label}: columns changed {_fmt(es['columns'])} -> {_fmt(as_['columns'])}"
+            )
             continue
-        drop = {j for j, c in enumerate(es["columns"]) if c in set(meta.get("volatile_columns", []))}
-        cols = [c for j, c in enumerate(es["columns"]) if j not in drop]
-        er, ar = _strip(es["rows"], drop), _strip(as_["rows"], drop)
+        drop_indexes = {
+            j for j, c in enumerate(es["columns"]) if c in set(meta.get("volatile_columns", []))
+        }
+        cols = [c for j, c in enumerate(es["columns"]) if j not in drop_indexes]
+        er, ar = _strip(es["rows"], drop_indexes), _strip(as_["rows"], drop_indexes)
         if len(er) != len(ar):
             diffs.append(f"{label}: row count changed {len(er)} -> {len(ar)}")
         if meta.get("ordered"):
-            for r, (x, y) in enumerate(zip(er, ar)):
+            for r, (x, y) in enumerate(zip(er, ar, strict=False)):
                 if x != y:
-                    changed = {cols[j]: [x[j], y[j]] for j in range(min(len(x), len(y))) if x[j] != y[j]}
-                    diffs.append(f"{label}, row {r + 1}: " + ", ".join(
-                        f"{c} {_fmt(o)} -> {_fmt(n)}" for c, (o, n) in changed.items()))
+                    changed = {
+                        cols[j]: [x[j], y[j]] for j in range(min(len(x), len(y))) if x[j] != y[j]
+                    }
+                    diffs.append(
+                        f"{label}, row {r + 1}: "
+                        + ", ".join(f"{c} {_fmt(o)} -> {_fmt(n)}" for c, (o, n) in changed.items())
+                    )
             if len(er) == len(ar) and er != ar and _sorted(er) == _sorted(ar):
                 diffs.append(f"{label}: same rows, different order")
         else:
             missing, unexpected = _multiset_diff(er, ar)
             for row in missing:
-                diffs.append(f"{label}: missing row {_fmt(dict(zip(cols, row)))}")
+                diffs.append(f"{label}: missing row {_fmt(dict(zip(cols, row, strict=True)))}")
             for row in unexpected:
-                diffs.append(f"{label}: unexpected row {_fmt(dict(zip(cols, row)))}")
+                diffs.append(f"{label}: unexpected row {_fmt(dict(zip(cols, row, strict=True)))}")
 
     exp_tables, act_tables = expected.get("tables", {}), actual.get("tables", {})
     for table in sorted(set(exp_tables) | set(act_tables)):
@@ -352,18 +395,28 @@ def compare_run(expected: dict[str, Any], learned: dict[str, Any], actual: dict[
         at = act_tables.get(table) or {"inserted": [], "deleted": [], "updated": []}
         if et.get("skipped") or at.get("skipped"):
             continue
-        drop = set(learned.get("volatile_table_columns", {}).get(table, []))
+        drop_columns: set[str] = set(learned.get("volatile_table_columns", {}).get(table, []))
         for part, verb in (("inserted", "inserts"), ("deleted", "deletes")):
-            missing, unexpected = _multiset_diff(_project(et[part], drop), _project(at[part], drop))
+            missing, unexpected = _multiset_diff(
+                _project(et[part], drop_columns), _project(at[part], drop_columns)
+            )
             if missing or unexpected:
                 if len(et[part]) != len(at[part]):
-                    diffs.append(f"{table}: expected {len(et[part])} {part} row(s), got {len(at[part])}")
+                    diffs.append(
+                        f"{table}: expected {len(et[part])} {part} row(s), got {len(at[part])}"
+                    )
                 for row in missing[:5]:
                     diffs.append(f"{table}: no longer {verb} {_fmt(row)}")
                 for row in unexpected[:5]:
                     diffs.append(f"{table}: now {verb} {_fmt(row)}")
-        eu = {_key(u["key"]): {c: v for c, v in u["changes"].items() if c not in drop} for u in et["updated"]}
-        au = {_key(u["key"]): {c: v for c, v in u["changes"].items() if c not in drop} for u in at["updated"]}
+        eu = {
+            _key(u["key"]): {c: v for c, v in u["changes"].items() if c not in drop_columns}
+            for u in et["updated"]
+        }
+        au = {
+            _key(u["key"]): {c: v for c, v in u["changes"].items() if c not in drop_columns}
+            for u in at["updated"]
+        }
         eu = {k: v for k, v in eu.items() if v}
         au = {k: v for k, v in au.items() if v}
         for k in sorted(set(eu) | set(au)):
@@ -375,12 +428,14 @@ def compare_run(expected: dict[str, Any], learned: dict[str, Any], actual: dict[
                 else:
                     for col in sorted(set(eu[k]) | set(au[k])):
                         if eu[k].get(col) != au[k].get(col):
-                            exp_new = eu[k].get(col, [None, '(unchanged)'])[1]
-                            act_new = au[k].get(col, [None, '(unchanged)'])[1]
-                            diffs.append(f"{table}: row {k}, column {col}: expected new value "
-                                         f"{_fmt(exp_new)}, got {_fmt(act_new)}")
+                            exp_new = eu[k].get(col, [None, "(unchanged)"])[1]
+                            act_new = au[k].get(col, [None, "(unchanged)"])[1]
+                            diffs.append(
+                                f"{table}: row {k}, column {col}: expected new value "
+                                f"{_fmt(exp_new)}, got {_fmt(act_new)}"
+                            )
 
     if len(diffs) > MAX_REPORTED_DIFFERENCES:
         extra = len(diffs) - MAX_REPORTED_DIFFERENCES
-        diffs = diffs[:MAX_REPORTED_DIFFERENCES] + [f"... and {extra} more difference(s)"]
+        diffs = [*diffs[:MAX_REPORTED_DIFFERENCES], f"... and {extra} more difference(s)"]
     return diffs

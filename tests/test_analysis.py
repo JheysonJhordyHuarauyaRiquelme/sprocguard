@@ -1,6 +1,14 @@
 from conftest import PLACE_ORDER_SQL
-from sprocguard.analysis import (analyze_risks, count_branches, inspect_procedure, strip_comments_and_strings,
-                                 suggest_cases, type_decl, write_targets_from_text)
+
+from sprocguard.analysis import (
+    analyze_risks,
+    count_branches,
+    inspect_procedure,
+    strip_comments_and_strings,
+    suggest_cases,
+    type_decl,
+    write_targets_from_text,
+)
 
 
 def codes(sql):
@@ -24,7 +32,10 @@ def test_risks_ignore_comments_but_find_real_code():
 
 
 def test_blocking_and_warning_rules():
-    assert codes("EXEC msdb.dbo.sp_send_dbmail @recipients = 'a@b.c'")["external_side_effect"] == "block"
+    assert (
+        codes("EXEC msdb.dbo.sp_send_dbmail @recipients = 'a@b.c'")["external_side_effect"]
+        == "block"
+    )
     assert codes("SELECT * FROM SRV.Sales.dbo.Orders")["linked_server"] == "block"
     assert codes("EXEC sp_executesql @sql")["dynamic_sql"] == "warn"
     assert codes("EXEC (@sql)")["dynamic_sql"] == "warn"
@@ -36,7 +47,9 @@ def test_blocking_and_warning_rules():
 
 
 def test_write_targets_and_branches():
-    targets = write_targets_from_text(PLACE_ORDER_SQL + "\nDELETE FROM #t; UPDATE o SET Total = 0 FROM dbo.Orders o;")
+    targets = write_targets_from_text(
+        PLACE_ORDER_SQL + "\nDELETE FROM #t; UPDATE o SET Total = 0 FROM dbo.Orders o;"
+    )
     assert "dbo.Orders" in targets and "dbo.Products" in targets and "dbo.AuditLog" in targets
     assert "#t" not in targets
     assert "o" in targets  # alias; resolved (and discarded) against the catalog later
@@ -55,7 +68,12 @@ def test_inspect_procedure(db):
     info = inspect_procedure(db, "dbo.usp_PlaceOrder")
     assert info.writes == ["dbo.AuditLog", "dbo.Orders", "dbo.Products"]
     assert info.reads == ["dbo.Customers"]
-    assert [p.name for p in info.parameters] == ["@CustomerId", "@ProductId", "@Quantity", "@OrderId"]
+    assert [p.name for p in info.parameters] == [
+        "@CustomerId",
+        "@ProductId",
+        "@Quantity",
+        "@OrderId",
+    ]
     assert info.parameters[-1].is_output
     assert not info.blocked
     assert info.suggested_case_count == 5

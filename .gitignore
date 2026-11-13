@@ -10,3 +10,9 @@ build/
 sprocguard.toml
 # Baselines and tSQLt tests generated while trying the demo locally.
 .sprocguard/
+
+# Local tooling
+.coverage
+htmlcov/
+.ruff_cache/
+.mypy_cache/

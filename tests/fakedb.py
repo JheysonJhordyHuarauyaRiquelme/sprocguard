@@ -11,8 +11,9 @@ from __future__ import annotations
 import copy
 import itertools
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from sprocguard.db import ResultSet
 
@@ -29,7 +30,7 @@ class FakeProc:
     params: list[tuple[str, str, bool]]  # (name, type, is_output)
     reads: list[str]
     writes: list[str]
-    body: Callable[["FakeDatabase", dict[str, Any]], tuple[list[ResultSet], int, dict[str, Any]]]
+    body: Callable[[FakeDatabase, dict[str, Any]], tuple[list[ResultSet], int, dict[str, Any]]]
     first_result_set: list[tuple[str, str]] | None = None
 
 
@@ -65,7 +66,9 @@ class FakeDatabase:
     def commit(self) -> None:
         """What a COMMIT inside a procedure does."""
         if self.trancount == 0:
-            raise FakeDbError("The COMMIT TRANSACTION request has no corresponding BEGIN TRANSACTION.")
+            raise FakeDbError(
+                "The COMMIT TRANSACTION request has no corresponding BEGIN TRANSACTION."
+            )
         self.trancount -= 1
         if self.trancount == 0:
             self.saved = None  # committed for real
@@ -88,7 +91,7 @@ class FakeDatabase:
         sets = self.execute(sql, params)
         if not sets:
             return []
-        return [dict(zip(sets[0].columns, r)) for r in sets[0].rows]
+        return [dict(zip(sets[0].columns, r, strict=True)) for r in sets[0].rows]
 
     def close(self):
         pass
@@ -127,14 +130,23 @@ class FakeDatabase:
         if s == "SELECT @@TRANCOUNT AS n":
             return [ResultSet(["n"], [[self.trancount]])]
         if s == "SELECT SYSDATETIME() AS l, SYSUTCDATETIME() AS u":
-            return [ResultSet(["l", "u"], [["2026-11-12T10:00:00.000000", "2026-11-12T15:00:00.000000"]])]
+            return [
+                ResultSet(
+                    ["l", "u"], [["2026-11-12T10:00:00.000000", "2026-11-12T15:00:00.000000"]]
+                )
+            ]
         if s == "SELECT DB_NAME() AS name":
             return [ResultSet(["name"], [[self.name]])]
         if "WHERE o.object_id = OBJECT_ID(?)" in s:
             p = self._proc(params[0])
             if not p:
                 return [ResultSet(["object_id", "schema_name", "name", "type"], [])]
-            return [ResultSet(["object_id", "schema_name", "name", "type"], [[hash(p.name) % 10000, p.schema, p.name, "P "]])]
+            return [
+                ResultSet(
+                    ["object_id", "schema_name", "name", "type"],
+                    [[hash(p.name) % 10000, p.schema, p.name, "P "]],
+                )
+            ]
         if s.startswith("SELECT OBJECT_DEFINITION(?)"):
             p = next(p for p in self.procs.values() if hash(p.name) % 10000 == params[0])
             return [ResultSet(["definition"], [[p.definition]])]
@@ -147,8 +159,21 @@ class FakeDatabase:
             for name, typ, is_out in p.params:
                 base = typ.split("(")[0]
                 rows.append([name, base, base, -1 if "max" in typ else 50, 18, 2, int(is_out), 0])
-            return [ResultSet(["name", "system_type", "user_type", "max_length", "precision", "scale",
-                               "is_output", "is_table_type"], rows)]
+            return [
+                ResultSet(
+                    [
+                        "name",
+                        "system_type",
+                        "user_type",
+                        "max_length",
+                        "precision",
+                        "scale",
+                        "is_output",
+                        "is_table_type",
+                    ],
+                    rows,
+                )
+            ]
         if "sys.dm_sql_referenced_entities" in s:
             p = self._proc(params[0])
             rows = []
@@ -172,8 +197,12 @@ class FakeDatabase:
             p = next(p for p in self.procs.values() if hash(p.name) % 10000 == params[0])
             if not p.first_result_set:
                 return [ResultSet(["name", "system_type_name", "is_nullable", "error_message"], [])]
-            return [ResultSet(["name", "system_type_name", "is_nullable", "error_message"],
-                              [[n, t, 1, None] for n, t in p.first_result_set])]
+            return [
+                ResultSet(
+                    ["name", "system_type_name", "is_nullable", "error_message"],
+                    [[n, t, 1, None] for n, t in p.first_result_set],
+                )
+            ]
         if "i.is_primary_key = 1" in s:
             t = self._table(params[0])
             return [ResultSet(["name"], [[k] for k in self.keys.get(t, [])])]
@@ -184,7 +213,11 @@ class FakeDatabase:
         if m:
             rows = self.tables[f"{m.group(1)}.{m.group(2)}"]
             cols = list(rows[0]) if rows else []
-            return [ResultSet(cols, [[r[c] for c in cols] for r in rows])] if rows else [ResultSet([], [])]
+            return (
+                [ResultSet(cols, [[r[c] for c in cols] for r in rows])]
+                if rows
+                else [ResultSet([], [])]
+            )
         if "FROM sys.columns WHERE object_id = OBJECT_ID(?) AND name = ?" in s:
             t = self._table(params[0])
             has = t and self.tables[t] and params[1] in self.tables[t][0]
@@ -209,7 +242,9 @@ class FakeDatabase:
         out_vars: dict[str, str] = {}
         var_values: dict[str, Any] = {}
         it = iter(values)
-        for token in re.finditer(r"DECLARE (@__sg_out\d+) [^;=]+= \?|(@\w+) = \?|(@\w+) = (@__sg_out\d+) OUTPUT", sql):
+        for token in re.finditer(
+            r"DECLARE (@__sg_out\d+) [^;=]+= \?|(@\w+) = \?|(@\w+) = (@__sg_out\d+) OUTPUT", sql
+        ):
             if token.group(1):
                 var_values[token.group(1)] = next(it)
             elif token.group(2):
@@ -218,6 +253,6 @@ class FakeDatabase:
                 out_vars[token.group(3)] = token.group(4)
                 args[token.group(3)] = var_values.get(token.group(4))
         sets, rc, outputs = proc.body(self, args)
-        select_cols = ["__sprocguard_return_value"] + list(out_vars)
-        final = ResultSet(select_cols, [[rc] + [outputs.get(name) for name in out_vars]])
-        return sets + [final]
+        select_cols = ["__sprocguard_return_value", *out_vars]
+        final = ResultSet(select_cols, [[rc, *(outputs.get(name) for name in out_vars)]])
+        return [*sets, final]

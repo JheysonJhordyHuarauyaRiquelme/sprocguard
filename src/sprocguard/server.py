@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import functools
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -27,8 +28,12 @@ if a difference is intended, explain it to the user and recapture with overwrite
 after they agree.
 """
 
-READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
-WRITES_FILE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False)
+READ_ONLY = ToolAnnotations(
+    read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False
+)
+WRITES_FILE = ToolAnnotations(
+    read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
+)
 
 
 def explain_errors(func: F) -> F:
@@ -42,7 +47,11 @@ def explain_errors(func: F) -> F:
             raise ToolError(str(exc)) from exc
         except Exception as exc:
             module = type(exc).__module__.split(".")[0]
-            if module in ("pyodbc", "pymssql", "_mssql"):  # connection or SQL errors from the driver
+            if module in (
+                "pyodbc",
+                "pymssql",
+                "_mssql",
+            ):  # connection or SQL errors from the driver
                 raise ToolError(f"SQL Server error: {clean_error(exc)}") from exc
             raise
 
@@ -69,8 +78,12 @@ def build_server(config_path: str | None = None) -> MCPServer:
 
     @mcp.tool(annotations=WRITES_FILE)
     @explain_errors
-    def capture_baseline(procedure: str, cases: list[dict[str, Any]], watch_tables: list[str] | None = None,
-                         overwrite: bool = False) -> dict[str, Any]:
+    def capture_baseline(
+        procedure: str,
+        cases: list[dict[str, Any]],
+        watch_tables: list[str] | None = None,
+        overwrite: bool = False,
+    ) -> dict[str, Any]:
         """Record what the procedure does TODAY, before you change it.
         `cases` is a list like [{"name": "customer with orders", "params": {"@CustomerId": 1}}].
         Each case runs twice inside a rolled-back transaction; result sets, return value, OUTPUT

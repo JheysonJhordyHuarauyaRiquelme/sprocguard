@@ -4,8 +4,8 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-
 from fakedb import FakeDatabase, FakeDbError, FakeProc
+
 from sprocguard.config import Config, ConnectionConfig, SafetyConfig, StorageConfig
 from sprocguard.db import ResultSet
 
@@ -50,10 +50,24 @@ def money(value: Decimal) -> str:
 def get_orders_body(db: FakeDatabase, args):
     cid = args.get("@CustomerId")
     if not any(c["CustomerId"] == cid for c in db.tables["dbo.Customers"]):
-        raise FakeDbError("42000", "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]"
-                          "Customer not found (50001) (SQLExecDirectW)")
-    rows = sorted((o for o in db.tables["dbo.Orders"] if o["CustomerId"] == cid), key=lambda o: o["OrderId"])
-    return [ResultSet(["OrderId", "OrderDate", "Total"], [[o["OrderId"], o["OrderDate"], o["Total"]] for o in rows])], 0, {}
+        raise FakeDbError(
+            "42000",
+            "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]"
+            "Customer not found (50001) (SQLExecDirectW)",
+        )
+    rows = sorted(
+        (o for o in db.tables["dbo.Orders"] if o["CustomerId"] == cid), key=lambda o: o["OrderId"]
+    )
+    return (
+        [
+            ResultSet(
+                ["OrderId", "OrderDate", "Total"],
+                [[o["OrderId"], o["OrderDate"], o["Total"]] for o in rows],
+            )
+        ],
+        0,
+        {},
+    )
 
 
 def make_place_order_body(vip_discount=Decimal("0.90")):
@@ -63,14 +77,23 @@ def make_place_order_body(vip_discount=Decimal("0.90")):
         if product["Stock"] < qty:
             raise FakeDbError("Insufficient stock")
         total = Decimal(product["Price"]) * qty
-        if any(c["CustomerId"] == cid and c["Segment"] == "VIP" for c in db.tables["dbo.Customers"]):
+        if any(
+            c["CustomerId"] == cid and c["Segment"] == "VIP" for c in db.tables["dbo.Customers"]
+        ):
             total = total * vip_discount
         db.write()
         order_id = db.next_id()
-        db.tables["dbo.Orders"].append({"OrderId": order_id, "CustomerId": cid, "OrderDate": db.now(), "Total": money(total)})
+        db.tables["dbo.Orders"].append(
+            {"OrderId": order_id, "CustomerId": cid, "OrderDate": db.now(), "Total": money(total)}
+        )
         product["Stock"] -= qty
         db.tables["dbo.AuditLog"].append({"Action": "order", "At": db.now()})
-        return [ResultSet(["OrderId", "Total"], [[order_id, money(total)]])], 0, {"@OrderId": order_id}
+        return (
+            [ResultSet(["OrderId", "Total"], [[order_id, money(total)]])],
+            0,
+            {"@OrderId": order_id},
+        )
+
     return body
 
 
@@ -91,18 +114,40 @@ def build_db() -> FakeDatabase:
         ],
         "dbo.AuditLog": [],
     }
-    db.keys = {"dbo.Customers": ["CustomerId"], "dbo.Products": ["ProductId"], "dbo.Orders": ["OrderId"]}
+    db.keys = {
+        "dbo.Customers": ["CustomerId"],
+        "dbo.Products": ["ProductId"],
+        "dbo.Orders": ["OrderId"],
+    }
     db.procs = {
         "dbo.usp_getcustomerorders": FakeProc(
-            "dbo", "usp_GetCustomerOrders", GET_ORDERS_SQL, [("@CustomerId", "int", False)],
-            ["dbo.Customers", "dbo.Orders"], [], get_orders_body,
-            first_result_set=[("OrderId", "int"), ("OrderDate", "datetime2(0)"), ("Total", "decimal(10,2)")]),
+            "dbo",
+            "usp_GetCustomerOrders",
+            GET_ORDERS_SQL,
+            [("@CustomerId", "int", False)],
+            ["dbo.Customers", "dbo.Orders"],
+            [],
+            get_orders_body,
+            first_result_set=[
+                ("OrderId", "int"),
+                ("OrderDate", "datetime2(0)"),
+                ("Total", "decimal(10,2)"),
+            ],
+        ),
         "dbo.usp_placeorder": FakeProc(
-            "dbo", "usp_PlaceOrder", PLACE_ORDER_SQL,
-            [("@CustomerId", "int", False), ("@ProductId", "int", False), ("@Quantity", "int", False),
-             ("@OrderId", "int", True)],
-            ["dbo.Customers", "dbo.Products"], ["dbo.Orders", "dbo.Products", "dbo.AuditLog"],
-            make_place_order_body()),
+            "dbo",
+            "usp_PlaceOrder",
+            PLACE_ORDER_SQL,
+            [
+                ("@CustomerId", "int", False),
+                ("@ProductId", "int", False),
+                ("@Quantity", "int", False),
+                ("@OrderId", "int", True),
+            ],
+            ["dbo.Customers", "dbo.Products"],
+            ["dbo.Orders", "dbo.Products", "dbo.AuditLog"],
+            make_place_order_body(),
+        ),
     }
     return db
 
@@ -123,7 +168,16 @@ def config(tmp_path: Path) -> Config:
 
 
 PLACE_ORDER_CASES = [
-    {"name": "regular customer buys 2", "params": {"@CustomerId": 2, "@ProductId": 10, "@Quantity": 2}},
-    {"name": "VIP customer gets 10% off", "params": {"CustomerId": 1, "ProductId": 10, "Quantity": 3}},
-    {"name": "insufficient stock raises error", "params": {"@CustomerId": 2, "@ProductId": 11, "@Quantity": 5}},
+    {
+        "name": "regular customer buys 2",
+        "params": {"@CustomerId": 2, "@ProductId": 10, "@Quantity": 2},
+    },
+    {
+        "name": "VIP customer gets 10% off",
+        "params": {"CustomerId": 1, "ProductId": 10, "Quantity": 3},
+    },
+    {
+        "name": "insufficient stock raises error",
+        "params": {"@CustomerId": 2, "@ProductId": 11, "@Quantity": 5},
+    },
 ]

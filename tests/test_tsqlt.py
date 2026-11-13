@@ -1,8 +1,8 @@
 import re
 
 import sqlglot
-
 from conftest import PLACE_ORDER_CASES
+
 from sprocguard.analysis import inspect_procedure
 from sprocguard.capture import capture_baseline, load_baseline
 from sprocguard.tsqlt import generate_tests, sql_literal
@@ -20,13 +20,19 @@ def test_sql_literal():
     assert sql_literal("12.50", "decimal(10,2)") == "12.50"
     assert sql_literal("O'Brien", "nvarchar(50)") == "N'O''Brien'"
     assert sql_literal("2026-01-05T09:00:00.123456", "datetime") == "N'2026-01-05T09:00:00.123'"
-    assert sql_literal("2026-01-05T09:00:00.123456", "datetime2(7)") == "N'2026-01-05T09:00:00.123456'"
+    assert (
+        sql_literal("2026-01-05T09:00:00.123456", "datetime2(7)") == "N'2026-01-05T09:00:00.123456'"
+    )
     assert sql_literal("0x0A0B", "varbinary(16)") == "CONVERT(varbinary(max), '0x0A0B', 1)"
     assert sql_literal("1; DROP TABLE x", "int") == "N'1; DROP TABLE x'"
 
 
 def _batches(sql: str):
-    return [b.strip() for b in re.split(r"^GO$", sql, flags=re.MULTILINE) if b.strip() and not b.strip().startswith("-- Run")]
+    return [
+        b.strip()
+        for b in re.split(r"^GO$", sql, flags=re.MULTILINE)
+        if b.strip() and not b.strip().startswith("-- Run")
+    ]
 
 
 def test_generates_valid_tsqlt_for_read_only_procedure(db, config):

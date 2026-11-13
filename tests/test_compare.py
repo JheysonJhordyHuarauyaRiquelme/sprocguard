@@ -27,10 +27,18 @@ def test_learn_rows():
 
 def _run(order_id, date, total, error=None):
     return {
-        "error": error, "return_value": 0, "outputs": {"@OrderId": order_id},
+        "error": error,
+        "return_value": 0,
+        "outputs": {"@OrderId": order_id},
         "result_sets": [{"columns": ["OrderId", "Total"], "rows": [[order_id, total]]}],
-        "tables": {"dbo.Orders": {"key": ["OrderId"], "updated": [], "deleted": [],
-                                  "inserted": [{"OrderId": order_id, "OrderDate": date, "Total": total}]}},
+        "tables": {
+            "dbo.Orders": {
+                "key": ["OrderId"],
+                "updated": [],
+                "deleted": [],
+                "inserted": [{"OrderId": order_id, "OrderDate": date, "Total": total}],
+            }
+        },
     }
 
 
@@ -48,6 +56,47 @@ def test_volatility_and_comparison():
     assert any("Result set #1, row 1: Total" in d and "22.50" in d for d in diffs)
     assert any("dbo.Orders" in d and "22.50" in d for d in diffs)
 
-    diffs = compare_run(r1, learned, {**_run(1004, "t5", "25.00"), "error": "boom", "result_sets": []})
+    diffs = compare_run(
+        r1, learned, {**_run(1004, "t5", "25.00"), "error": "boom", "result_sets": []}
+    )
     assert any("now fails" in d for d in diffs)
     assert any("Number of result sets" in d for d in diffs)
+
+
+def _update_run(modified_at, status):
+    return {
+        "error": None,
+        "return_value": 0,
+        "outputs": {},
+        "result_sets": [],
+        "tables": {
+            "dbo.Orders": {
+                "key": ["OrderId"],
+                "inserted": [],
+                "deleted": [],
+                "updated": [
+                    {
+                        "key": {"OrderId": 7},
+                        "changes": {"Status": ["New", status], "ModifiedAt": ["t0", modified_at]},
+                    }
+                ],
+            }
+        },
+    }
+
+
+def test_volatile_columns_are_ignored_in_updated_rows():
+    learned = {
+        "volatile_scalars": [],
+        "result_sets": [],
+        "volatile_table_columns": {"dbo.Orders": ["ModifiedAt"]},
+    }
+    expected = _update_run("t1", "Paid")
+
+    # Only the volatile column differs: same behavior.
+    assert compare_run(expected, learned, _update_run("t2", "Paid")) == []
+
+    # A real column differs: reported, and the volatile one is not mentioned.
+    diffs = compare_run(expected, learned, _update_run("t3", "Cancelled"))
+    assert any("Status" in d and "Cancelled" in d for d in diffs)
+    assert not any("ModifiedAt" in d for d in diffs)

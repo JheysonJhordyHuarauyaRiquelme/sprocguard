@@ -11,8 +11,14 @@ def test_mcp_server_exposes_tools_with_annotations():
     server = build_server()
     tools = asyncio.run(server.list_tools())
     names = {t.name: t for t in tools}
-    assert set(names) == {"inspect_procedure", "suggest_cases", "capture_baseline", "verify_procedure",
-                          "generate_tsqlt_tests", "list_baselines"}
+    assert set(names) == {
+        "inspect_procedure",
+        "suggest_cases",
+        "capture_baseline",
+        "verify_procedure",
+        "generate_tsqlt_tests",
+        "list_baselines",
+    }
     assert names["verify_procedure"].annotations.read_only_hint is True
     assert names["capture_baseline"].annotations.read_only_hint is False
     schema = names["capture_baseline"].input_schema
@@ -34,7 +40,9 @@ def test_config_requires_allowed_databases(tmp_path):
     path.write_text('[connection]\nodbc = "x"\n', encoding="utf-8")
     with pytest.raises(ConfigError, match="allowed_databases"):
         load_config(path)
-    path.write_text('[connection]\nodbc = "x"\n[safety]\nallowed_databases=["A"]\ntypo = 1\n', encoding="utf-8")
+    path.write_text(
+        '[connection]\nodbc = "x"\n[safety]\nallowed_databases=["A"]\ntypo = 1\n', encoding="utf-8"
+    )
     with pytest.raises(ConfigError, match="Unknown keys"):
         load_config(path)
 

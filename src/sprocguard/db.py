@@ -12,8 +12,9 @@ import datetime as _dt
 import decimal
 import os
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable, Protocol
+from typing import Any, Protocol
 
 from .config import Config, ConfigError
 
@@ -40,7 +41,7 @@ class Database(Protocol):
 
 def normalize_value(value: Any) -> Any:
     """Convert a driver value into a JSON-friendly, comparable value."""
-    if value is None or isinstance(value, (str, int, float)) and not isinstance(value, bool):
+    if value is None or (isinstance(value, (str, int, float)) and not isinstance(value, bool)):
         return value
     if isinstance(value, bool):
         return int(value)
@@ -60,7 +61,9 @@ def normalize_value(value: Any) -> Any:
 class DriverDatabase:
     """A ``Database`` backed by a real DB-API connection."""
 
-    def __init__(self, connection: Any, paramstyle: str, error_types: tuple[type[BaseException], ...]):
+    def __init__(
+        self, connection: Any, paramstyle: str, error_types: tuple[type[BaseException], ...]
+    ):
         self._conn = connection
         self._paramstyle = paramstyle
         self.error_types = error_types
@@ -76,7 +79,7 @@ class DriverDatabase:
         if not sets:
             return []
         first = sets[0]
-        return [dict(zip(first.columns, row)) for row in first.rows]
+        return [dict(zip(first.columns, row, strict=True)) for row in first.rows]
 
     def execute(self, sql: str, params: Iterable[Any] = ()) -> list[ResultSet]:
         cursor = self._conn.cursor()
@@ -119,10 +122,14 @@ def connect(config: Config) -> DriverDatabase:
         try:
             import pymssql
         except ImportError as exc:  # pragma: no cover
-            raise ConfigError('pymssql is not installed: pip install "sprocguard[pymssql]"') from exc
+            raise ConfigError(
+                'pymssql is not installed: pip install "sprocguard[pymssql]"'
+            ) from exc
         password = os.environ.get(conn_cfg.password_env)
         if password is None:
-            raise ConfigError(f"Set the {conn_cfg.password_env} environment variable with the password.")
+            raise ConfigError(
+                f"Set the {conn_cfg.password_env} environment variable with the password."
+            )
         raw = pymssql.connect(
             server=conn_cfg.server,
             port=conn_cfg.port,

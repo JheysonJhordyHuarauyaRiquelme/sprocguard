@@ -43,7 +43,7 @@ class Case:
     params: dict[str, Any]
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], index: int) -> "Case":
+    def from_dict(cls, data: dict[str, Any], index: int) -> Case:
         if not isinstance(data, dict):
             raise CaptureError(f"Case #{index + 1} must be an object with 'name' and 'params'.")
         params = data.get("params", {}) or {}
@@ -94,7 +94,9 @@ def build_exec_batch(info: ProcedureInfo, params: dict[str, Any]) -> tuple[str, 
     if args:
         call += " " + ", ".join(args)
     lines.append(call + ";")
-    select = [f"@__sg_rc AS {quote_name(RETURN_COLUMN)}"] + [f"{var} AS {quote_name(name)}" for name, var in outputs]
+    select = [f"@__sg_rc AS {quote_name(RETURN_COLUMN)}"] + [
+        f"{var} AS {quote_name(name)}" for name, var in outputs
+    ]
     lines.append("SELECT " + ", ".join(select) + ";")
     return "\n".join(lines), values
 
@@ -138,7 +140,9 @@ def _snapshot(db: Database, table: str) -> list[dict[str, Any]]:
     return db.query(f"SELECT * FROM {quote_name(schema, name)}")
 
 
-def plan_tables(db: Database, tables: list[str], max_rows: int) -> tuple[dict[str, list[str]], dict[str, str]]:
+def plan_tables(
+    db: Database, tables: list[str], max_rows: int
+) -> tuple[dict[str, list[str]], dict[str, str]]:
     """Decide which tables can be snapshotted. Returns (table -> key columns, table -> skip reason)."""
     usable: dict[str, list[str]] = {}
     skipped: dict[str, str] = {}
@@ -146,20 +150,30 @@ def plan_tables(db: Database, tables: list[str], max_rows: int) -> tuple[dict[st
         schema, name = table.split(".", 1)
         count = db.query(f"SELECT COUNT_BIG(*) AS n FROM {quote_name(schema, name)}")[0]["n"]
         if count > max_rows:
-            skipped[table] = (f"{count} rows is more than [safety].max_rows_per_table ({max_rows}); "
-                              f"changes in this table are not compared.")
+            skipped[table] = (
+                f"{count} rows is more than [safety].max_rows_per_table ({max_rows}); "
+                f"changes in this table are not compared."
+            )
         else:
             usable[table] = _primary_key(db, table)
     return usable, skipped
 
 
-def run_case(db: Database, info: ProcedureInfo, params: dict[str, Any], tables: dict[str, list[str]],
-             skipped: dict[str, str], config: Config) -> dict[str, Any]:
+def run_case(
+    db: Database,
+    info: ProcedureInfo,
+    params: dict[str, Any],
+    tables: dict[str, list[str]],
+    skipped: dict[str, str],
+    config: Config,
+) -> dict[str, Any]:
     """Execute one case inside a transaction that is always rolled back."""
     batch, values = build_exec_batch(info, params)
     timeout_ms = int(config.safety.lock_timeout_seconds * 1000)
-    db.execute(f"SET IMPLICIT_TRANSACTIONS ON; SET LOCK_TIMEOUT {timeout_ms}; "
-               "BEGIN TRANSACTION; BEGIN TRANSACTION;")
+    db.execute(
+        f"SET IMPLICIT_TRANSACTIONS ON; SET LOCK_TIMEOUT {timeout_ms}; "
+        "BEGIN TRANSACTION; BEGIN TRANSACTION;"
+    )
     try:
         level = db.query("SELECT @@TRANCOUNT AS n")[0]["n"]
         if level < 2:
@@ -185,16 +199,19 @@ def run_case(db: Database, info: ProcedureInfo, params: dict[str, Any], tables: 
         last = sets.pop()
         row = last.rows[0] if last.rows else [None] * len(last.columns)
         return_value = row[0]
-        outputs = dict(zip(last.columns[1:], row[1:]))
+        outputs = dict(zip(last.columns[1:], row[1:], strict=True))
 
-    run = {
+    run: dict[str, Any] = {
         "error": error,
         "return_value": return_value,
         "outputs": outputs,
         "result_sets": [{"columns": s.columns, "rows": s.rows} for s in sets],
         "tables": {t: diff_table(before[t], after[t], key) for t, key in tables.items()},
         # Server time while the procedure ran, used to spot columns that hold "now".
-        "clock": {"local": [clock_start["l"], clock_end["l"]], "utc": [clock_start["u"], clock_end["u"]]},
+        "clock": {
+            "local": [clock_start["l"], clock_end["l"]],
+            "utc": [clock_start["u"], clock_end["u"]],
+        },
     }
     for table, reason in skipped.items():
         run["tables"][table] = {"skipped": reason}
@@ -216,10 +233,18 @@ def baseline_file(config: Config, info: ProcedureInfo) -> Path:
 
 
 def _check_runnable(info: ProcedureInfo, config: Config) -> None:
-    blocked = [r for r in info.blocked
-               if not (r.code in ("external_side_effect", "linked_server") and config.safety.allow_external_side_effects)]
+    blocked = [
+        r
+        for r in info.blocked
+        if not (
+            r.code in ("external_side_effect", "linked_server")
+            and config.safety.allow_external_side_effects
+        )
+    ]
     if blocked:
-        reasons = " ".join(f"[{r.code}] {r.message} Evidence: {', '.join(r.evidence)}." for r in blocked)
+        reasons = " ".join(
+            f"[{r.code}] {r.message} Evidence: {', '.join(r.evidence)}." for r in blocked
+        )
         raise SafetyError(f"Refusing to run {info.full_name}. {reasons}")
 
 
@@ -227,8 +252,14 @@ def _current_database(db: Database) -> str:
     return db.query("SELECT DB_NAME() AS name")[0]["name"]
 
 
-def capture_baseline(db: Database, config: Config, procedure: str, cases: list[dict[str, Any]],
-                     watch_tables: list[str] | None = None, overwrite: bool = False) -> dict[str, Any]:
+def capture_baseline(
+    db: Database,
+    config: Config,
+    procedure: str,
+    cases: list[dict[str, Any]],
+    watch_tables: list[str] | None = None,
+    overwrite: bool = False,
+) -> dict[str, Any]:
     """Run each case twice, learn what is volatile, and save the expected behavior to a baseline file."""
     if not cases:
         raise CaptureError("Provide at least one case.")
@@ -236,13 +267,15 @@ def capture_baseline(db: Database, config: Config, procedure: str, cases: list[d
     _check_runnable(info, config)
     path = baseline_file(config, info)
     if path.exists() and not overwrite:
-        raise CaptureError(f"A baseline already exists at {path}. Pass overwrite=true only if the current "
-                           f"behavior is the one you want to keep.")
+        raise CaptureError(
+            f"A baseline already exists at {path}. Pass overwrite=true only if the current "
+            f"behavior is the one you want to keep."
+        )
     parsed = [Case.from_dict(c, i) for i, c in enumerate(cases)]
     tables_wanted = sorted(set(info.writes) | {_normalize_table(t) for t in (watch_tables or [])})
     tables, skipped = plan_tables(db, tables_wanted, config.safety.max_rows_per_table)
 
-    out_cases = []
+    out_cases: list[dict[str, Any]] = []
     warnings: list[str] = []
     for case in parsed:
         run1 = run_case(db, info, case.params, tables, skipped, config)
@@ -250,8 +283,14 @@ def capture_baseline(db: Database, config: Config, procedure: str, cases: list[d
         learned = learn_volatility(run1, run2)
         for problem in learned["problems"]:
             warnings.append(f"Case '{case.name}': {problem}")
-        out_cases.append({"name": case.name, "params": _canonical_params(info, case.params),
-                          "expected": run1, "learned": learned})
+        out_cases.append(
+            {
+                "name": case.name,
+                "params": _canonical_params(info, case.params),
+                "expected": run1,
+                "learned": learned,
+            }
+        )
 
     baseline = {
         "tool": "sprocguard",
@@ -259,7 +298,7 @@ def capture_baseline(db: Database, config: Config, procedure: str, cases: list[d
         "format_version": 1,
         "procedure": info.full_name,
         "database": _current_database(db),
-        "captured_at": _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat(),
+        "captured_at": _dt.datetime.now(_dt.UTC).replace(microsecond=0).isoformat(),
         "definition_hash": info.definition_hash,
         "watched_tables": sorted(tables),
         "skipped_tables": skipped,
@@ -267,15 +306,22 @@ def capture_baseline(db: Database, config: Config, procedure: str, cases: list[d
         "cases": out_cases,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(baseline, indent=2, ensure_ascii=False, default=str) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(baseline, indent=2, ensure_ascii=False, default=str) + "\n", encoding="utf-8"
+    )
     return {
         "procedure": info.full_name,
         "baseline_file": str(path),
         "cases": len(out_cases),
         "watched_tables": sorted(tables),
         "skipped_tables": skipped,
-        "volatile": {c["name"]: _volatile_summary(c["learned"]) for c in out_cases if _volatile_summary(c["learned"])},
-        "warnings": warnings + [f"[{r.code}] {r.message}" for r in info.risks if r.severity == "warn"],
+        "volatile": {
+            c["name"]: _volatile_summary(c["learned"])
+            for c in out_cases
+            if _volatile_summary(c["learned"])
+        },
+        "warnings": warnings
+        + [f"[{r.code}] {r.message}" for r in info.risks if r.severity == "warn"],
     }
 
 
@@ -296,7 +342,9 @@ def _volatile_summary(learned: dict[str, Any]) -> list[str]:
 def load_baseline(config: Config, info: ProcedureInfo) -> dict[str, Any]:
     path = baseline_file(config, info)
     if not path.exists():
-        raise CaptureError(f"No baseline for {info.full_name}. Capture one first (before changing the procedure).")
+        raise CaptureError(
+            f"No baseline for {info.full_name}. Capture one first (before changing the procedure)."
+        )
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -316,8 +364,14 @@ def verify(db: Database, config: Config, procedure: str) -> dict[str, Any]:
             differences = compare_run(case["expected"], case.get("learned", {}), actual)
         except CaptureError as exc:
             differences = [f"Could not run this case anymore: {exc}"]
-        results.append({"name": case["name"], "params": case["params"],
-                        "passed": not differences, "differences": differences})
+        results.append(
+            {
+                "name": case["name"],
+                "params": case["params"],
+                "passed": not differences,
+                "differences": differences,
+            }
+        )
 
     passed = sum(1 for r in results if r["passed"])
     return {

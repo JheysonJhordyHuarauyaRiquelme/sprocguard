@@ -1,0 +1,29 @@
+name: Bug report
+description: Something does not work as expected
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you run, what did you expect, and what did you get?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The smallest procedure and cases file that show the problem. Do not paste real data or passwords.
+      render: sql
+  - type: input
+    id: version
+    attributes:
+      label: sprocguard version
+      placeholder: output of `sprocguard --version`
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: SQL Server version, ODBC driver and OS
+      placeholder: SQL Server 2022, ODBC Driver 18, Windows 11

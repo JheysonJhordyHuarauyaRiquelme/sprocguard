@@ -179,15 +179,16 @@ For read-only procedures, `sprocguard tsqlt <proc>` writes a `.sql` file with on
 - [ ] tSQLt export with `FakeTable` for procedures that modify data
 - [ ] Table-valued parameters
 - [ ] `sprocguard impact <table>`: verify every procedure that uses a table you are changing
-- [ ] GitHub Action
+- [ ] GitHub Action that verifies procedures on every pull request
+- [ ] PostgreSQL support
 - [x] Publish to PyPI and the MCP Registry
 
-## Development
+## Contributing
 
-```bash
-pip install -e ".[dev]"
-pytest
-```
+Contributions are welcome, in English or Spanish. See [CONTRIBUTING.md](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/blob/main/CONTRIBUTING.md)
+to set up the project, run the checks and open a pull request, and the
+[changelog](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/blob/main/CHANGELOG.md) for what changed in each version.
+Security problems: please report them privately as described in [SECURITY.md](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/blob/main/SECURITY.md).
 
 The test suite uses an in-memory imitation of SQL Server (`tests/fakedb.py`), so it runs
 anywhere; real-database testing uses `examples/demo.sql`.

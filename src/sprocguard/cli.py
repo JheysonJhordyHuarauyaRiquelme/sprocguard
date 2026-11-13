@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__, service
+from .analysis import InspectionError
 from .capture import CaptureError
 from .config import DEFAULT_CONFIG_NAME, SAMPLE_CONFIG, ConfigError
 from .db import SafetyError
-from .analysis import InspectionError
 
 
 def _print(data: Any, as_json: bool) -> None:
@@ -57,9 +57,13 @@ def _print_verify(result: dict[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="sprocguard", description="A safety net for SQL Server stored procedures.")
+    parser = argparse.ArgumentParser(
+        prog="sprocguard", description="A safety net for SQL Server stored procedures."
+    )
     parser.add_argument("--version", action="version", version=f"sprocguard {__version__}")
-    parser.add_argument("--config", help=f"Path to the configuration file (default: ./{DEFAULT_CONFIG_NAME})")
+    parser.add_argument(
+        "--config", help=f"Path to the configuration file (default: ./{DEFAULT_CONFIG_NAME})"
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -71,7 +75,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("procedure")
     p = sub.add_parser("capture", help="Capture the current behavior as a baseline")
     p.add_argument("procedure")
-    p.add_argument("--cases", required=True, help="JSON file: [{\"name\": ..., \"params\": {...}}, ...]")
+    p.add_argument(
+        "--cases", required=True, help='JSON file: [{"name": ..., "params": {...}}, ...]'
+    )
     p.add_argument("--watch", nargs="*", default=[], help="Extra tables to compare (schema.table)")
     p.add_argument("--overwrite", action="store_true", help="Replace an existing baseline")
     p = sub.add_parser("verify", help="Compare the procedure against its baseline")
@@ -89,10 +95,13 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{target} already exists; not touching it.")
                 return 1
             target.write_text(SAMPLE_CONFIG, encoding="utf-8")
-            print(f"Created {target}. Edit the connection and allowed_databases, then run 'sprocguard inspect <proc>'.")
+            print(
+                f"Created {target}. Edit the connection and allowed_databases, then run 'sprocguard inspect <proc>'."
+            )
             return 0
         if args.command == "serve":
             from .server import run
+
             run(args.config)
             return 0
         if args.command == "inspect":
@@ -101,7 +110,12 @@ def main(argv: list[str] | None = None) -> int:
             _print(service.suggest(args.procedure, args.config), args.json)
         elif args.command == "capture":
             cases = json.loads(Path(args.cases).read_text(encoding="utf-8"))
-            _print(service.capture_baseline(args.procedure, cases, args.watch, args.overwrite, args.config), args.json)
+            _print(
+                service.capture_baseline(
+                    args.procedure, cases, args.watch, args.overwrite, args.config
+                ),
+                args.json,
+            )
         elif args.command == "verify":
             names = args.procedures or [b["procedure"] for b in service.list_baselines(args.config)]
             if not names:
@@ -121,7 +135,9 @@ def main(argv: list[str] | None = None) -> int:
             if baselines or args.json:
                 _print(baselines, args.json)
             else:
-                print("No baselines yet. Capture one with 'sprocguard capture <proc> --cases cases.json'.")
+                print(
+                    "No baselines yet. Capture one with 'sprocguard capture <proc> --cases cases.json'."
+                )
         return 0
     except (ConfigError, SafetyError, CaptureError, InspectionError) as exc:
         print(f"sprocguard: {exc}", file=sys.stderr)

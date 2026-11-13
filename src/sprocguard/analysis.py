@@ -269,7 +269,9 @@ def resolve_procedure(db: Database, name: str) -> tuple[int, str, str]:
         raise InspectionError(f"Stored procedure '{name}' was not found in the current database.")
     row = rows[0]
     if row["type"].strip() != "P":
-        raise InspectionError(f"'{name}' is not a T-SQL stored procedure (type {row['type'].strip()}).")
+        raise InspectionError(
+            f"'{name}' is not a T-SQL stored procedure (type {row['type'].strip()})."
+        )
     return row["object_id"], row["schema_name"], row["name"]
 
 
@@ -284,8 +286,19 @@ def _parameters(db: Database, object_id: int) -> list[Parameter]:
     params = []
     for r in rows:
         is_table = bool(r["is_table_type"])
-        declared = r["user_type"] if is_table else type_decl(r["system_type"], r["max_length"], r["precision"], r["scale"])
-        params.append(Parameter(name=r["name"], type=declared, is_output=bool(r["is_output"]), is_table_type=is_table))
+        declared = (
+            r["user_type"]
+            if is_table
+            else type_decl(r["system_type"], r["max_length"], r["precision"], r["scale"])
+        )
+        params.append(
+            Parameter(
+                name=r["name"],
+                type=declared,
+                is_output=bool(r["is_output"]),
+                is_table_type=is_table,
+            )
+        )
     return params
 
 
@@ -331,11 +344,23 @@ def _first_result_set(db: Database, object_id: int) -> list[ResultColumn] | None
     )
     if not rows or any(r.get("error_message") for r in rows):
         return None
-    return [ResultColumn(name=r["name"], type=r["system_type_name"], nullable=bool(r["is_nullable"])) for r in rows]
+    return [
+        ResultColumn(name=r["name"], type=r["system_type_name"], nullable=bool(r["is_nullable"]))
+        for r in rows
+    ]
 
 
-def _collect_effects(db: Database, qualified: str, definition: str, depth: int, seen: set[str],
-                     reads: set[str], writes: set[str], calls: set[str], notes: list[str]) -> None:
+def _collect_effects(
+    db: Database,
+    qualified: str,
+    definition: str,
+    depth: int,
+    seen: set[str],
+    reads: set[str],
+    writes: set[str],
+    calls: set[str],
+    notes: list[str],
+) -> None:
     """Walk the procedure (and procedures/triggers it reaches) collecting table reads and writes."""
     if qualified.lower() in seen or depth > 5:
         return
@@ -343,7 +368,9 @@ def _collect_effects(db: Database, qualified: str, definition: str, depth: int, 
     try:
         refs = _references(db, qualified)
     except Exception as exc:  # metadata can fail when the code references missing objects
-        notes.append(f"Could not read dependency metadata for {qualified}: {exc}. Falling back to text analysis.")
+        notes.append(
+            f"Could not read dependency metadata for {qualified}: {exc}. Falling back to text analysis."
+        )
         refs = []
     for ref in refs:
         full = f"{ref['schema_name']}.{ref['name']}"
@@ -371,9 +398,13 @@ def _collect_effects(db: Database, qualified: str, definition: str, depth: int, 
 def inspect_procedure(db: Database, name: str) -> ProcedureInfo:
     object_id, schema, proc = resolve_procedure(db, name)
     qualified = f"{schema}.{proc}"
-    definition = db.query("SELECT OBJECT_DEFINITION(?) AS definition", (object_id,))[0]["definition"]
+    definition = db.query("SELECT OBJECT_DEFINITION(?) AS definition", (object_id,))[0][
+        "definition"
+    ]
     if not definition:
-        raise InspectionError(f"The definition of {qualified} is not readable (encrypted or no VIEW DEFINITION permission).")
+        raise InspectionError(
+            f"The definition of {qualified} is not readable (encrypted or no VIEW DEFINITION permission)."
+        )
 
     reads: set[str] = set()
     writes: set[str] = set()
@@ -392,19 +423,36 @@ def inspect_procedure(db: Database, name: str) -> ProcedureInfo:
         seen_tables.add(table)
         for trigger in _triggers(db, table):
             triggers.append(trigger)
-            trig_def = db.query("SELECT OBJECT_DEFINITION(OBJECT_ID(?)) AS definition", (trigger,))[0]["definition"] or ""
+            trig_def = (
+                db.query("SELECT OBJECT_DEFINITION(OBJECT_ID(?)) AS definition", (trigger,))[0][
+                    "definition"
+                ]
+                or ""
+            )
             before = set(writes)
             _collect_effects(db, trigger, trig_def, 1, set(), reads, writes, calls, notes)
             pending.extend(sorted(writes - before))
 
     risks = analyze_risks(definition)
     if triggers:
-        risks.append(Risk("triggers", "info", "Triggers run when this procedure writes; their changes are included.", sorted(triggers)))
+        risks.append(
+            Risk(
+                "triggers",
+                "info",
+                "Triggers run when this procedure writes; their changes are included.",
+                sorted(triggers),
+            )
+        )
     parameters = _parameters(db, object_id)
     if any(p.is_table_type for p in parameters):
-        risks.append(Risk("table_valued_parameter", "block",
-                          "Table-valued parameters are not supported yet in sprocguard 0.1.",
-                          [p.name for p in parameters if p.is_table_type]))
+        risks.append(
+            Risk(
+                "table_valued_parameter",
+                "block",
+                "Table-valued parameters are not supported yet in sprocguard 0.1.",
+                [p.name for p in parameters if p.is_table_type],
+            )
+        )
     try:
         first = _first_result_set(db, object_id)
     except Exception:
@@ -433,12 +481,23 @@ def inspect_procedure(db: Database, name: str) -> ProcedureInfo:
 # --------------------------------------------------------------------------------------
 
 
-_EDGE_VALUES = {
-    "int": [0, -1], "bigint": [0, -1], "smallint": [0, -1], "tinyint": [0, 255],
+_EDGE_VALUES: dict[str, list[Any]] = {
+    "int": [0, -1],
+    "bigint": [0, -1],
+    "smallint": [0, -1],
+    "tinyint": [0, 255],
     "bit": [0, 1],
-    "decimal": ["0", "-1"], "numeric": ["0", "-1"], "money": ["0", "-1"], "float": [0.0, -1.0],
-    "varchar": ["", "x" * 50], "nvarchar": ["", "ñandú"], "char": [""], "nchar": [""],
-    "date": ["1900-01-01", "9999-12-31"], "datetime": ["1900-01-01T00:00:00"], "datetime2": ["0001-01-01T00:00:00"],
+    "decimal": ["0", "-1"],
+    "numeric": ["0", "-1"],
+    "money": ["0", "-1"],
+    "float": [0.0, -1.0],
+    "varchar": ["", "x" * 50],
+    "nvarchar": ["", "ñandú"],
+    "char": [""],
+    "nchar": [""],
+    "date": ["1900-01-01", "9999-12-31"],
+    "datetime": ["1900-01-01T00:00:00"],
+    "datetime2": ["0001-01-01T00:00:00"],
 }
 
 
@@ -472,7 +531,7 @@ def suggest_cases(db: Database, info: ProcedureInfo, samples_per_param: int = 3)
             "is_output": param.is_output,
             "real_values": real,
             "real_values_from": source,
-            "edge_values": _EDGE_VALUES.get(base_type, []) + [None],
+            "edge_values": [*_EDGE_VALUES.get(base_type, []), None],
         }
     return {
         "procedure": info.full_name,
