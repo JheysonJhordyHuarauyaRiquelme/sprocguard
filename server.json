@@ -1,0 +1,51 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.JheysonJhordyHuarauyaRiquelme/sprocguard",
+  "title": "sprocguard",
+  "description": "Safety net for SQL Server stored procedures: capture their behavior and verify changes.",
+  "repository": {
+    "url": "https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard",
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "sprocguard",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "serve"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "SPROCGUARD_CONFIG",
+          "description": "Path to sprocguard.toml (defaults to ./sprocguard.toml in the working directory)",
+          "isRequired": false,
+          "format": "filepath"
+        },
+        {
+          "name": "SPROCGUARD_ODBC",
+          "description": "ODBC connection string; overrides the connection in sprocguard.toml",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "SPROCGUARD_PASSWORD",
+          "description": "SQL login password, only when the config uses user/password_env",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

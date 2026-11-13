@@ -50,7 +50,7 @@ Requiere Python 3.11+ y el [Microsoft ODBC Driver 17 o 18 for SQL Server](https:
 cambia `ODBC Driver 18` por `ODBC Driver 17` en `sprocguard.toml`.
 
 ```bash
-pip install git+https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard
+pip install sprocguard
 ```
 
 ## Prueba rápida con la base de demo
@@ -81,6 +81,10 @@ agente el flujo: *inspeccionar → diseñar casos → capturar → modificar →
 ```json
 { "mcpServers": { "sprocguard": { "command": "sprocguard", "args": ["serve"] } } }
 ```
+
+Con [uv](https://docs.astral.sh/uv/) ni siquiera necesitas instalarlo antes: usa `"command": "uvx", "args": ["sprocguard", "serve"]`.
+sprocguard también está en el [MCP Registry](https://registry.modelcontextprotocol.io) como
+`io.github.JheysonJhordyHuarauyaRiquelme/sprocguard`.
 
 ## Limitaciones de la versión 0.1
 

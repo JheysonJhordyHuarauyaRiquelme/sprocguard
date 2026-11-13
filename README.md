@@ -1,14 +1,17 @@
 # sprocguard
 
+<!-- mcp-name: io.github.JheysonJhordyHuarauyaRiquelme/sprocguard -->
+
+[![PyPI](https://img.shields.io/pypi/v/sprocguard.svg)](https://pypi.org/project/sprocguard/)
 [![CI](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/ci.yml/badge.svg)](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/blob/main/LICENSE)
+[![Python 3.11+](https://img.shields.io/pypi/pyversions/sprocguard.svg)](https://pypi.org/project/sprocguard/)
 
 **A safety net for SQL Server stored procedures.**
 Capture what a procedure does *today*, let a human or an AI agent change it, and get a clear
 report of every behavior that changed — before it reaches production.
 
-[Leer en español](README.es.md)
+[Leer en español](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/blob/main/README.es.md)
 
 ```text
 $ sprocguard verify dbo.usp_PlaceOrder
@@ -72,11 +75,18 @@ Requires Python 3.11+ and the [Microsoft ODBC Driver 17 or 18 for SQL Server](ht
 `Get-OdbcDriver | Where-Object Name -like "*SQL Server*"` in PowerShell.
 
 ```bash
-pip install git+https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard
-# SQL authentication without ODBC:  pip install "sprocguard[pymssql] @ git+https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard"
+pip install sprocguard
+# SQL authentication without ODBC:  pip install "sprocguard[pymssql]"
 ```
 
 ## Quick start (5 minutes, with the demo database)
+
+The demo scripts live in the [`examples`](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/tree/main/examples) folder of the repository:
+
+```bash
+git clone https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard.git
+cd sprocguard
+```
 
 ```bash
 sqlcmd -S localhost -E -i examples/demo.sql        # creates DemoShop with two procedures
@@ -105,7 +115,7 @@ tsqlt_dir = ".sprocguard/tsqlt"
 
 ## Use it with AI agents (MCP)
 
-sprocguard ships an MCP server and an [Agent Skill](skills/sprocguard/SKILL.md) that teaches
+sprocguard ships an MCP server and an [Agent Skill](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/blob/main/skills/sprocguard/SKILL.md) that teaches
 agents the workflow: *inspect → design cases → capture → change → verify*.
 
 **Claude Code** (plugin with the MCP server and the skill):
@@ -120,6 +130,10 @@ agents the workflow: *inspect → design cases → capture → change → verify
 ```json
 { "mcpServers": { "sprocguard": { "command": "sprocguard", "args": ["serve"] } } }
 ```
+
+With [uv](https://docs.astral.sh/uv/) you can skip the install step: use `"command": "uvx", "args": ["sprocguard", "serve"]`.
+sprocguard is also listed in the [MCP Registry](https://registry.modelcontextprotocol.io) as
+`io.github.JheysonJhordyHuarauyaRiquelme/sprocguard`.
 
 | Tool | What it does | Read-only |
 |---|---|---|
@@ -166,7 +180,7 @@ For read-only procedures, `sprocguard tsqlt <proc>` writes a `.sql` file with on
 - [ ] Table-valued parameters
 - [ ] `sprocguard impact <table>`: verify every procedure that uses a table you are changing
 - [ ] GitHub Action
-- [ ] Publish to PyPI and the MCP Registry
+- [x] Publish to PyPI and the MCP Registry
 
 ## Development
 

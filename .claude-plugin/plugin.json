@@ -1,6 +1,6 @@
 {
   "name": "sprocguard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Safety net for SQL Server stored procedures: capture what a procedure does before an AI agent changes it, then verify nothing changed by accident.",
   "author": {
     "name": "Jheyson Huarauya Riquelme"

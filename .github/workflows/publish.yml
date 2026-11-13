@@ -1,0 +1,88 @@
+name: Publish
+
+# Runs when a GitHub release is published (for example v0.1.1):
+# 1. checks that the tag, the package version and server.json agree,
+# 2. publishes the package to PyPI with Trusted Publishing (no API token stored),
+# 3. publishes server.json to the official MCP Registry with GitHub OIDC.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Check versions match the release tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(python -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('src/sprocguard/__init__.py').read()).group(1))")
+          SRV=$(python -c "import json;d=json.load(open('server.json'));print(d['version'], d['packages'][0]['version'])")
+          echo "tag=$TAG package=$PKG server.json=$SRV"
+          [ "$TAG" = "$PKG" ] || { echo "::error::Tag $TAG does not match __version__ $PKG"; exit 1; }
+          [ "$SRV" = "$PKG $PKG" ] || { echo "::error::server.json versions ($SRV) must both be $PKG"; exit 1; }
+
+      - name: Run tests
+        run: |
+          pip install -e ".[dev]"
+          pytest -q
+
+      - name: Build
+        run: |
+          pip install build twine
+          python -m build
+          twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/sprocguard/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  mcp-registry:
+    needs: pypi
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Wait until the new version is visible on PyPI
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          for i in $(seq 1 30); do
+            if curl -fsS "https://pypi.org/pypi/sprocguard/$VERSION/json" > /dev/null; then
+              echo "sprocguard $VERSION is on PyPI"; exit 0
+            fi
+            echo "Not visible yet, retrying in 10 s ($i/30)"; sleep 10
+          done
+          echo "::error::sprocguard $VERSION did not appear on PyPI"; exit 1
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+
+      - name: Publish to the MCP Registry
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
