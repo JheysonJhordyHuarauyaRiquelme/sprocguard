@@ -119,6 +119,7 @@ SAMPLE_CONFIG = """\
 
 [connection]
 # Option A (recommended on Windows): an ODBC connection string.
+# Use "ODBC Driver 17 for SQL Server" if that is the driver installed on your machine.
 odbc = "Driver={ODBC Driver 18 for SQL Server};Server=localhost;Database=DemoShop;Trusted_Connection=yes;TrustServerCertificate=yes"
 
 # Option B: SQL authentication through pymssql (pip install "sprocguard[pymssql]").

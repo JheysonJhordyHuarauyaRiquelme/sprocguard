@@ -67,8 +67,9 @@ Captures hold locks on the tables involved for a moment: use a development datab
 
 ## Install
 
-Requires Python 3.11+ and the [Microsoft ODBC Driver 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server)
-(usually already installed with SQL Server or SSMS).
+Requires Python 3.11+ and the [Microsoft ODBC Driver 17 or 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server)
+(usually already installed with SQL Server or SSMS). Check which one you have with
+`Get-OdbcDriver | Where-Object Name -like "*SQL Server*"` in PowerShell.
 
 ```bash
 pip install git+https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard
@@ -86,7 +87,7 @@ sqlcmd -S localhost -E -i examples/regression.sql  # a "harmless" refactor
 sprocguard verify dbo.usp_PlaceOrder                # catches the rounding change (exit code 2)
 ```
 
-`sprocguard.toml`:
+`sprocguard.toml` (use `ODBC Driver 17 for SQL Server` if that is the one you have):
 
 ```toml
 [connection]

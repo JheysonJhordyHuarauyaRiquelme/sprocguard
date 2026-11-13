@@ -110,7 +110,7 @@ def connect(config: Config) -> DriverDatabase:
             import pyodbc
         except ImportError as exc:  # pragma: no cover - depends on the machine
             raise ConfigError(
-                "pyodbc could not be loaded. Install the 'ODBC Driver 18 for SQL Server' "
+                "pyodbc could not be loaded. Install the 'ODBC Driver 17 or 18 for SQL Server' "
                 "or use pymssql (see README)."
             ) from exc
         raw = pyodbc.connect(conn_cfg.odbc, autocommit=True)

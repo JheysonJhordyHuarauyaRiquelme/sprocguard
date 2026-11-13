@@ -44,8 +44,10 @@ Mientras captura, mantiene bloqueos breves en las tablas involucradas: usa una b
 
 ## Instalación
 
-Requiere Python 3.11+ y el [Microsoft ODBC Driver 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server)
-(normalmente ya viene con SQL Server o SSMS).
+Requiere Python 3.11+ y el [Microsoft ODBC Driver 17 o 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server)
+(normalmente ya viene con SQL Server o SSMS). Para ver cuál tienes, ejecuta
+`Get-OdbcDriver | Where-Object Name -like "*SQL Server*"` en PowerShell. Si tienes el 17,
+cambia `ODBC Driver 18` por `ODBC Driver 17` en `sprocguard.toml`.
 
 ```bash
 pip install git+https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard
