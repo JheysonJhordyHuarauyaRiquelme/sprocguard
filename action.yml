@@ -1,0 +1,209 @@
+name: sprocguard verify
+description: Fail a pull request when a SQL Server stored procedure stops behaving like its committed baseline.
+author: Jheyson Huarauya Riquelme
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  config:
+    description: Path to your sprocguard.toml. Its [safety] and [storage] settings are used as they are; the connection is replaced by the throwaway server.
+    required: false
+    default: sprocguard.toml
+  setup-scripts:
+    description: T-SQL scripts that build the database (schema, seed data, procedures), one per line, run in order with sqlcmd. Glob patterns such as db/procedures/*.sql are allowed.
+    required: false
+    default: ""
+  procedures:
+    description: Procedures to verify, separated by spaces or new lines. Empty means every baseline.
+    required: false
+    default: ""
+  database:
+    description: Database to create and verify. Defaults to the first entry of [safety].allowed_databases.
+    required: false
+    default: ""
+  verify:
+    description: Run sprocguard verify. Set to "false" to only prepare the server, so later steps can run sprocguard commands themselves.
+    required: false
+    default: "true"
+  start-sql-server:
+    description: Start a throwaway SQL Server in Docker. Set to "false" in later steps of the same job to reuse the server started by an earlier step.
+    required: false
+    default: "true"
+  sql-server-image:
+    description: SQL Server container image.
+    required: false
+    default: mcr.microsoft.com/mssql/server:2022-latest
+  python-version:
+    description: Python version used to run sprocguard.
+    required: false
+    default: "3.12"
+
+outputs:
+  passed:
+    description: '"true" if every procedure behaves as in its baseline, "false" if any changed. Empty when verify is "false".'
+    value: ${{ steps.verify.outputs.passed }}
+  report:
+    description: Path to the Markdown report (also added to the job summary).
+    value: ${{ steps.verify.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the runner
+      if: runner.os != 'Linux'
+      shell: bash
+      run: |
+        echo "::error title=sprocguard::This action runs SQL Server in a Linux container. Use a Linux runner such as ubuntu-latest."
+        exit 1
+
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install sprocguard
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        venv="$RUNNER_TEMP/sprocguard-venv"
+        if [ ! -x "$venv/bin/sprocguard" ]; then
+          python -m venv "$venv"
+          "$venv/bin/python" -m pip install --quiet --disable-pip-version-check "${ACTION_PATH}[pymssql]"
+        fi
+        echo "$venv/bin" >> "$GITHUB_PATH"
+        "$venv/bin/sprocguard" --version
+
+    - name: Read the configuration
+      id: settings
+      shell: bash
+      env:
+        CONFIG: ${{ inputs.config }}
+        DATABASE: ${{ inputs.database }}
+      run: |
+        python_bin="$RUNNER_TEMP/sprocguard-venv/bin/python"
+        database="$("$python_bin" - <<'PY'
+        import os, sys, tomllib
+        path = os.environ["CONFIG"]
+        try:
+            with open(path, "rb") as fh:
+                data = tomllib.load(fh)
+        except FileNotFoundError:
+            sys.exit(f"sprocguard: configuration file not found: {path}")
+        database = os.environ.get("DATABASE") or next(
+            iter(data.get("safety", {}).get("allowed_databases", [])), ""
+        )
+        if not database:
+            sys.exit("sprocguard: set the database input or [safety].allowed_databases.")
+        print(database)
+        PY
+        )"
+        echo "database=$database" >> "$GITHUB_OUTPUT"
+        echo "SPROCGUARD_CONFIG=$CONFIG" >> "$GITHUB_ENV"
+
+    - name: Start SQL Server
+      if: inputs.start-sql-server == 'true'
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.sql-server-image }}
+        DATABASE: ${{ steps.settings.outputs.database }}
+      run: |
+        password="Sg-$(openssl rand -hex 16)-A1"
+        echo "::add-mask::$password"
+        docker run --detach --name sprocguard-sql --publish 1433:1433 \
+          --env ACCEPT_EULA=Y --env MSSQL_PID=Developer --env MSSQL_SA_PASSWORD="$password" \
+          "$IMAGE" > /dev/null
+
+        sqlcmd=""
+        for _ in $(seq 1 90); do
+          for candidate in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do
+            if docker exec sprocguard-sql "$candidate" -S localhost -U sa -P "$password" -C -b \
+                 -Q "SELECT 1" > /dev/null 2>&1; then
+              sqlcmd="$candidate"
+              break 2
+            fi
+          done
+          sleep 2
+        done
+        if [ -z "$sqlcmd" ]; then
+          docker logs sprocguard-sql | tail -n 40
+          echo "::error title=sprocguard::SQL Server did not start within 3 minutes."
+          exit 1
+        fi
+
+        quoted="${DATABASE//]/]]}"
+        literal="${DATABASE//\'/\'\'}"
+        docker exec sprocguard-sql "$sqlcmd" -S localhost -U sa -P "$password" -C -b \
+          -Q "IF DB_ID(N'$literal') IS NULL CREATE DATABASE [$quoted];"
+
+        {
+          echo "SPROCGUARD_SERVER=localhost"
+          echo "SPROCGUARD_PORT=1433"
+          echo "SPROCGUARD_USER=sa"
+          echo "SPROCGUARD_PASSWORD=$password"
+          echo "SPROCGUARD_DATABASE=$DATABASE"
+          echo "SPROCGUARD_SQLCMD=$sqlcmd"
+        } >> "$GITHUB_ENV"
+        echo "SQL Server is ready with an empty database [$DATABASE]."
+
+    - name: Run setup scripts
+      if: inputs.setup-scripts != ''
+      shell: bash
+      env:
+        SCRIPTS: ${{ inputs.setup-scripts }}
+        DATABASE: ${{ steps.settings.outputs.database }}
+      run: |
+        if [ -z "${SPROCGUARD_SQLCMD:-}" ]; then
+          echo "::error title=sprocguard::setup-scripts needs the SQL Server started by this action (start-sql-server: true in this or an earlier step)."
+          exit 1
+        fi
+        shopt -s nullglob globstar
+        while IFS= read -r pattern; do
+          pattern="$(echo "$pattern" | xargs)"
+          [ -z "$pattern" ] && continue
+          # Intentionally unquoted so glob patterns expand; nullglob drops non-matches.
+          # shellcheck disable=SC2206
+          files=( $pattern )
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error title=sprocguard::No file matches '$pattern'."
+            exit 1
+          fi
+          for file in "${files[@]}"; do
+            echo "::group::$file"
+            docker cp "$file" sprocguard-sql:/tmp/sprocguard-script.sql
+            # -I: QUOTED_IDENTIFIER ON, like SSMS. -f 65001: read the script as UTF-8.
+            docker exec sprocguard-sql "$SPROCGUARD_SQLCMD" -S localhost -U sa \
+              -P "$SPROCGUARD_PASSWORD" -C -b -I -f 65001 -d "$DATABASE" \
+              -i /tmp/sprocguard-script.sql
+            echo "::endgroup::"
+          done
+        done <<< "$SCRIPTS"
+
+    - name: Verify procedures
+      id: verify
+      if: inputs.verify == 'true'
+      shell: bash
+      env:
+        PROCEDURES: ${{ inputs.procedures }}
+      run: |
+        report="$RUNNER_TEMP/sprocguard-report.md"
+        read -r -a names <<< "$(echo "$PROCEDURES" | tr '\n' ' ')"
+
+        set +e
+        sprocguard verify --markdown-report "$report" "${names[@]}"
+        code=$?
+        set -e
+
+        if [ -f "$report" ]; then
+          cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+        fi
+        case "$code" in
+          0) echo "passed=true" >> "$GITHUB_OUTPUT" ;;
+          2)
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            echo "::error title=sprocguard::A stored procedure no longer behaves like its baseline. See the job summary for the differences."
+            ;;
+        esac
+        exit "$code"

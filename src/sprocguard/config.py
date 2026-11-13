@@ -85,6 +85,35 @@ def _build(cls, values: dict, section: str):
     return cls(**values)
 
 
+def _apply_environment(connection: ConnectionConfig) -> ConnectionConfig:
+    """Let environment variables replace the connection from the file.
+
+    This keeps one ``sprocguard.toml`` in the repository while CI points it at a
+    throwaway server: ``SPROCGUARD_ODBC`` replaces it with an ODBC string, and
+    ``SPROCGUARD_SERVER`` (with ``SPROCGUARD_PORT``, ``SPROCGUARD_USER`` and
+    ``SPROCGUARD_DATABASE``) replaces it with a pymssql connection whose password
+    is read from ``SPROCGUARD_PASSWORD``. The [safety] rules still apply.
+    """
+    odbc = os.environ.get("SPROCGUARD_ODBC")
+    server = os.environ.get("SPROCGUARD_SERVER")
+    if odbc and server:
+        raise ConfigError("Set SPROCGUARD_ODBC or SPROCGUARD_SERVER, not both.")
+    if odbc:
+        connection.odbc = odbc
+    elif server:
+        port = os.environ.get("SPROCGUARD_PORT", "1433")
+        if not port.isdigit():
+            raise ConfigError(f"SPROCGUARD_PORT must be a number, got {port!r}.")
+        connection = ConnectionConfig(
+            server=server,
+            port=int(port),
+            user=os.environ.get("SPROCGUARD_USER") or connection.user,
+            password_env="SPROCGUARD_PASSWORD",
+            database=os.environ.get("SPROCGUARD_DATABASE") or connection.database,
+        )
+    return connection
+
+
 def load_config(path: str | os.PathLike | None = None) -> Config:
     """Load configuration from ``path``, ``$SPROCGUARD_CONFIG`` or ``./sprocguard.toml``."""
     candidate = path or os.environ.get("SPROCGUARD_CONFIG") or DEFAULT_CONFIG_NAME
@@ -97,10 +126,9 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
     with config_file.open("rb") as fh:
         data = tomllib.load(fh)
 
-    connection = _build(ConnectionConfig, _section(data, "connection"), "connection")
-    # An environment variable can override the ODBC string (handy for CI).
-    if os.environ.get("SPROCGUARD_ODBC"):
-        connection.odbc = os.environ["SPROCGUARD_ODBC"]
+    connection = _apply_environment(
+        _build(ConnectionConfig, _section(data, "connection"), "connection")
+    )
     safety = _build(SafetyConfig, _section(data, "safety"), "safety")
     storage = _build(StorageConfig, _section(data, "storage"), "storage")
 

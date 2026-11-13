@@ -1,0 +1,67 @@
+name: Integration
+
+# Runs sprocguard against a real SQL Server through the repository's own
+# GitHub Action: build the demo database, capture baselines, check that the
+# unchanged procedures pass, then deploy a "harmless refactor" and check that
+# sprocguard catches it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sql-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Start SQL Server and build the demo database
+        uses: ./
+        with:
+          config: examples/sprocguard.ci.toml
+          setup-scripts: examples/demo.sql
+          verify: "false"
+
+      - name: Capture baselines
+        run: |
+          sprocguard capture dbo.usp_GetCustomerOrders --cases examples/cases/usp_GetCustomerOrders.json
+          sprocguard capture dbo.usp_PlaceOrder --cases examples/cases/usp_PlaceOrder.json
+
+      - name: Unchanged procedures pass
+        uses: ./
+        with:
+          config: examples/sprocguard.ci.toml
+          start-sql-server: "false"
+
+      - name: Deploy the "harmless refactor"
+        uses: ./
+        with:
+          config: examples/sprocguard.ci.toml
+          start-sql-server: "false"
+          setup-scripts: examples/regression.sql
+          verify: "false"
+
+      - name: sprocguard catches the refactor
+        run: |
+          set +e
+          sprocguard verify --markdown-report "$RUNNER_TEMP/regression.md"
+          code=$?
+          set -e
+          {
+            echo "## Expected failure: the refactor in examples/regression.sql"
+            cat "$RUNNER_TEMP/regression.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" -ne 2 ]; then
+            echo "::error::Expected exit code 2 (behavior changed), got $code."
+            exit 1
+          fi
+          grep -q "VIP customer gets 10% off" "$RUNNER_TEMP/regression.md"

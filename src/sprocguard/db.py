@@ -131,12 +131,15 @@ def connect(config: Config) -> DriverDatabase:
                 f"Set the {conn_cfg.password_env} environment variable with the password."
             )
         raw = pymssql.connect(
-            server=conn_cfg.server,
-            port=conn_cfg.port,
+            server=conn_cfg.server or "",
+            port=str(conn_cfg.port),
             user=conn_cfg.user,
             password=password,
-            database=conn_cfg.database,
+            database=conn_cfg.database or "",  # "" means the login's default database
             autocommit=True,
+            # TDS 7.4 returns date, time and datetime2 as Python dates, like pyodbc does,
+            # so baselines captured with one driver compare cleanly with the other.
+            tds_version="7.4",
         )
         db = DriverDatabase(raw, "pyformat", (pymssql.Error,))
 

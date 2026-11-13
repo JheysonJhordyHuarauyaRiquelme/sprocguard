@@ -13,6 +13,7 @@ from .analysis import InspectionError
 from .capture import CaptureError
 from .config import DEFAULT_CONFIG_NAME, SAMPLE_CONFIG, ConfigError
 from .db import SafetyError
+from .report import to_markdown
 
 
 def _print(data: Any, as_json: bool) -> None:
@@ -82,6 +83,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--overwrite", action="store_true", help="Replace an existing baseline")
     p = sub.add_parser("verify", help="Compare the procedure against its baseline")
     p.add_argument("procedures", nargs="*", help="Procedures to verify (default: every baseline)")
+    p.add_argument(
+        "--markdown-report",
+        metavar="PATH",
+        help="Also write a Markdown report (for pull requests and CI job summaries)",
+    )
     p = sub.add_parser("tsqlt", help="Generate tSQLt tests from a baseline")
     p.add_argument("procedure")
     sub.add_parser("list", help="List baselines")
@@ -122,6 +128,8 @@ def main(argv: list[str] | None = None) -> int:
                 print("No baselines found. Capture one first.")
                 return 1
             results = [service.verify(name, args.config) for name in names]
+            if args.markdown_report:
+                Path(args.markdown_report).write_text(to_markdown(results), encoding="utf-8")
             if args.json:
                 _print(results, True)
             else:
