@@ -8,7 +8,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 - `sprocguard verify --only-failures` keeps passing procedures to one line and shows
-  only failing cases and their differences in text output.
+  only failing cases and their differences in text output (#9, thanks @enidchen0125).
+- Troubleshooting section in the READMEs (#11, thanks @stepheng223).
+
+### Fixed
+- `sprocguard capture` reports a missing, unreadable or invalid `--cases` file with a
+  one-line error instead of a Python traceback (#10, thanks @bfs2021).
 
 ### Changed
 - READMEs: "Three ways to use it" overview, GitHub Marketplace badge and links; the Spanish

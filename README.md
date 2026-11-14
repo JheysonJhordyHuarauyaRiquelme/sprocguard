@@ -263,17 +263,18 @@ odbc = "Driver={ODBC Driver 17 for SQL Server};Server=localhost;Database=DemoSho
 Install the pymssql extra and set the password in the environment variable
 named by `password_env` (default `SPROCGUARD_PASSWORD`):
 
-```bash
+```powershell
 pip install "sprocguard[pymssql]"
-export SPROCGUARD_PASSWORD=...
+$env:SPROCGUARD_PASSWORD = "..."     # PowerShell
+# export SPROCGUARD_PASSWORD=...     # bash / zsh
 ```
 
 In `sprocguard.toml`, set `server`, `user`, and `password_env`.
 
-**"database not allowed"**
+**"Connected to database '...', which is not in [safety].allowed_databases"**
 
-sprocguard refuses to connect to any database not listed in
-`[safety].allowed_databases`. Add the database:
+sprocguard refuses to run against any database not listed in
+`[safety].allowed_databases`, on purpose. If it is a development database, add it:
 
 ```toml
 [safety]

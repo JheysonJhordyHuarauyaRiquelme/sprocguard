@@ -125,6 +125,24 @@ Con [uv](https://docs.astral.sh/uv/) ni siquiera necesitas instalarlo antes: usa
 sprocguard también está en el [MCP Registry](https://registry.modelcontextprotocol.io) como
 `io.github.JheysonJhordyHuarauyaRiquelme/sprocguard`.
 
+## Solución de problemas
+
+**No encuentra el driver ODBC.** Revisa cuál tienes con
+`Get-OdbcDriver | Where-Object Name -like "*SQL Server*"` en PowerShell. Si tienes el 17, usa
+`ODBC Driver 17 for SQL Server` en la cadena `odbc` de `sprocguard.toml`.
+
+**Login failed (autenticación SQL).** Instala `pip install "sprocguard[pymssql]"`, configura
+`server` y `user` en `sprocguard.toml` y pon la contraseña en la variable de entorno indicada en
+`password_env` (por defecto `SPROCGUARD_PASSWORD`): `$env:SPROCGUARD_PASSWORD = "..."` en
+PowerShell o `export SPROCGUARD_PASSWORD=...` en bash.
+
+**"Connected to database '...', which is not in [safety].allowed_databases".** sprocguard solo
+se ejecuta en las bases que listas, a propósito. Si es una base de desarrollo, agrégala a
+`[safety].allowed_databases`.
+
+**Errores de certificado con ODBC Driver 18.** En servidores locales de desarrollo, agrega
+`TrustServerCertificate=yes` a la cadena `odbc`.
+
 ## Limitaciones
 
 - Aún no soporta parámetros con valores de tabla (table-valued parameters).
