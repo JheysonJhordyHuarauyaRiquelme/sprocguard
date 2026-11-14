@@ -6,6 +6,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `sprocguard verify --only-failures` keeps passing procedures to one line and shows
+  only failing cases and their differences in text output.
+
 ### Changed
 - READMEs: "Three ways to use it" overview, GitHub Marketplace badge and links; the Spanish
   README gains badges, the roadmap and the pymssql install line.
