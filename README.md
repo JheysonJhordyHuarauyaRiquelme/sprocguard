@@ -5,6 +5,7 @@
 [![PyPI](https://img.shields.io/pypi/v/sprocguard.svg)](https://pypi.org/project/sprocguard/)
 [![CI](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/ci.yml/badge.svg)](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/ci.yml)
 [![Integration](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/integration.yml/badge.svg)](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/integration.yml)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-sprocguard%20verify-blue?logo=github)](https://github.com/marketplace/actions/sprocguard-verify)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/blob/main/LICENSE)
 [![Python 3.11+](https://img.shields.io/pypi/pyversions/sprocguard.svg)](https://pypi.org/project/sprocguard/)
 
@@ -30,6 +31,14 @@ FAIL  dbo.usp_PlaceOrder: 3/5 case(s) behave exactly as in the baseline.
   ok  buys exactly the last units
   ok  insufficient stock raises error
 ```
+
+## Three ways to use it
+
+| Where | How | For |
+| --- | --- | --- |
+| Terminal | `pip install sprocguard` ([CLI](#cli)) | Checking a change on your machine |
+| AI agents | MCP server and Claude Code plugin ([MCP](#use-it-with-ai-agents-mcp)) | Letting an agent verify its own SQL edits |
+| Pull requests | [GitHub Action](#verify-on-every-pull-request-github-action), also on the [GitHub Marketplace](https://github.com/marketplace/actions/sprocguard-verify) | Blocking a merge that changes behavior |
 
 ## Why
 
@@ -163,7 +172,8 @@ Add `--json` for machine-readable output.
 
 ## Verify on every pull request (GitHub Action)
 
-This repository is also a GitHub Action. It starts a throwaway SQL Server in Docker, builds
+This repository is also a GitHub Action, listed on the
+[GitHub Marketplace](https://github.com/marketplace/actions/sprocguard-verify). It starts a throwaway SQL Server in Docker, builds
 your database from the scripts in your repository, and runs `sprocguard verify` against the
 baselines you committed. The pull request fails when a procedure changed behavior, and the
 job summary lists every difference.
@@ -241,6 +251,7 @@ For read-only procedures, `sprocguard tsqlt <proc>` writes a `.sql` file with on
 - [ ] PostgreSQL support
 - [x] Publish to PyPI and the MCP Registry
 - [x] GitHub Action that verifies procedures on every pull request
+- [x] List the GitHub Action on the GitHub Marketplace
 
 ## Contributing
 

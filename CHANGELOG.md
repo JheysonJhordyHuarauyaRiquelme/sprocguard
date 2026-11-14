@@ -6,6 +6,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- READMEs: "Three ways to use it" overview, GitHub Marketplace badge and links; the Spanish
+  README gains badges, the roadmap and the pymssql install line.
+
 ## [0.2.0] - 2026-11-13
 
 ### Added
