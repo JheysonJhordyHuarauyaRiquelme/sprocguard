@@ -6,6 +6,20 @@ y obtén un reporte claro de cada comportamiento que cambió, antes de que llegu
 
 [Read in English](README.md)
 
+[![PyPI](https://img.shields.io/pypi/v/sprocguard.svg)](https://pypi.org/project/sprocguard/)
+[![CI](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/ci.yml/badge.svg)](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/ci.yml)
+[![Integration](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/integration.yml/badge.svg)](https://github.com/JheysonJhordyHuarauyaRiquelme/sprocguard/actions/workflows/integration.yml)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-sprocguard%20verify-blue?logo=github)](https://github.com/marketplace/actions/sprocguard-verify)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+## Tres formas de usarlo
+
+| Dónde | Cómo | Para qué |
+| --- | --- | --- |
+| Terminal | `pip install sprocguard` | Revisar un cambio en tu máquina |
+| Agentes de IA | Servidor MCP y plugin de Claude Code ([MCP](#con-agentes-de-ia-mcp)) | Que un agente verifique sus propios cambios en SQL |
+| Pull requests | [GitHub Action](#verificar-en-cada-pull-request-github-action), también en el [GitHub Marketplace](https://github.com/marketplace/actions/sprocguard-verify) | Bloquear un merge que cambia el comportamiento |
+
 ## El problema
 
 Muchas empresas guardan sus reglas de negocio dentro de stored procedures, casi siempre sin tests.
@@ -51,6 +65,7 @@ cambia `ODBC Driver 18` por `ODBC Driver 17` en `sprocguard.toml`.
 
 ```bash
 pip install sprocguard
+# Autenticación SQL sin ODBC:  pip install "sprocguard[pymssql]"
 ```
 
 ## Prueba rápida con la base de demo
@@ -66,7 +81,8 @@ sprocguard verify dbo.usp_PlaceOrder                # detecta el cambio de redon
 
 ## Verificar en cada pull request (GitHub Action)
 
-Este repositorio también es una GitHub Action. Levanta un SQL Server temporal en Docker,
+Este repositorio también es una GitHub Action, publicada en el
+[GitHub Marketplace](https://github.com/marketplace/actions/sprocguard-verify). Levanta un SQL Server temporal en Docker,
 construye tu base de datos con los scripts de tu repositorio y ejecuta `sprocguard verify`
 contra los baselines que guardaste. El pull request falla si un procedure cambió su
 comportamiento, y el resumen del job muestra cada diferencia.
@@ -115,6 +131,18 @@ sprocguard también está en el [MCP Registry](https://registry.modelcontextprot
 - Las tablas que se modifican solo con SQL dinámico no se detectan solas; agrégalas con `--watch`.
 - Si el procedure falla, no se registran los result sets que devolvió antes del error (sí el error).
 - La exportación a tSQLt cubre procedures de solo lectura; para los que modifican datos usa `verify`.
+- Las comparaciones ignoran el orden de las filas cuando ese orden no fue estable entre las dos ejecuciones de la captura.
+
+## Hoja de ruta
+
+- [ ] Exportación a tSQLt con `FakeTable` para procedures que modifican datos
+- [ ] Parámetros con valores de tabla (table-valued parameters)
+- [ ] `sprocguard impact <tabla>`: verificar todos los procedures que usan una tabla que vas a cambiar
+- [ ] Verificar un pull request sin baselines guardados: capturar en la rama base y verificar en la rama del PR
+- [ ] Soporte para PostgreSQL
+- [x] Publicación en PyPI y en el MCP Registry
+- [x] GitHub Action que verifica los procedures en cada pull request
+- [x] Publicación de la Action en el GitHub Marketplace
 
 ## Contribuir
 
