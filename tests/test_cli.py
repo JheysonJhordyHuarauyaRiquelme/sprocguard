@@ -148,3 +148,24 @@ def test_only_failures_preserves_json_and_markdown(cli, db, tmp_path, capsys, re
         == expected_code
     )
     assert filtered_report.read_bytes() == original_report.read_bytes()
+
+
+def test_capture_reports_a_missing_cases_file(cli, capsys):
+    missing = cli.parent / "nope.json"
+
+    assert main(["capture", "dbo.usp_PlaceOrder", "--cases", str(missing)]) == 1
+    err = capsys.readouterr().err
+    assert "sprocguard: cases file not found:" in err
+    assert "nope.json" in err
+
+
+def test_capture_reports_invalid_cases_json_with_position(cli, capsys):
+    bad = cli.parent / "bad.json"
+    bad.write_text('[{"name": "x",}', encoding="utf-8")
+
+    assert main(["capture", "dbo.usp_PlaceOrder", "--cases", str(bad)]) == 1
+    err = capsys.readouterr().err
+    assert "sprocguard:" in err
+    assert "bad.json" in err
+    assert "line 1" in err
+    assert "column" in err
