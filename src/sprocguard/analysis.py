@@ -258,6 +258,10 @@ class InspectionError(Exception):
     pass
 
 
+class ProcedureNotFoundError(InspectionError):
+    """The procedure does not exist in the database (for example, it is new in a pull request)."""
+
+
 def resolve_procedure(db: Database, name: str) -> tuple[int, str, str]:
     rows = db.query(
         "SELECT o.object_id, s.name AS schema_name, o.name AS name, o.type AS type "
@@ -266,7 +270,9 @@ def resolve_procedure(db: Database, name: str) -> tuple[int, str, str]:
         (name,),
     )
     if not rows:
-        raise InspectionError(f"Stored procedure '{name}' was not found in the current database.")
+        raise ProcedureNotFoundError(
+            f"Stored procedure '{name}' was not found in the current database."
+        )
     row = rows[0]
     if row["type"].strip() != "P":
         raise InspectionError(

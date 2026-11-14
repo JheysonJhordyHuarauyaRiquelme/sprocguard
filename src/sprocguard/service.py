@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from . import analysis, capture, tsqlt
+from .cases import collect_case_files, load_cases, procedure_for
 from .config import Config, load_config
 from .db import Database, connect
 
@@ -51,6 +52,51 @@ def capture_baseline(
 ) -> dict[str, Any]:
     with session(config_path) as (config, db):
         return capture.capture_baseline(db, config, procedure, cases, watch_tables, overwrite)
+
+
+def capture_cases(
+    paths: list[str],
+    overwrite: bool = False,
+    skip_missing: bool = False,
+    config_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """Capture a baseline for every cases file in ``paths`` (files or folders).
+
+    The procedure comes from the file name (``usp_PlaceOrder.json`` is ``dbo.usp_PlaceOrder``).
+    With ``skip_missing``, procedures that do not exist yet are reported as skipped instead
+    of stopping the run, which is what a pull request that adds a procedure needs.
+    """
+    files = collect_case_files(paths)
+    results: list[dict[str, Any]] = []
+    with session(config_path) as (config, db):
+        for path in files:
+            procedure = procedure_for(path)
+            cases = load_cases(path)
+            try:
+                result = capture.capture_baseline(db, config, procedure, cases, None, overwrite)
+            except analysis.ProcedureNotFoundError as exc:
+                if not skip_missing:
+                    raise
+                results.append(
+                    {
+                        "procedure": procedure,
+                        "file": str(path),
+                        "status": "skipped",
+                        "reason": str(exc),
+                    }
+                )
+                continue
+            results.append(
+                {
+                    "procedure": procedure,
+                    "file": str(path),
+                    "status": "captured",
+                    "cases": len(cases),
+                    "baseline_file": result.get("baseline_file"),
+                    "warnings": result.get("warnings", []),
+                }
+            )
+    return results
 
 
 def verify(procedure: str, config_path: str | None = None) -> dict[str, Any]:
