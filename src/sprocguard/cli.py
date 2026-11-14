@@ -57,6 +57,23 @@ def _print_verify(result: dict[str, Any]) -> None:
             print(f"        - {diff}")
 
 
+def _load_cases(path: str) -> Any:
+    """Read and parse the cases file, turning file and JSON errors into CaptureError."""
+    cases_path = Path(path)
+    try:
+        text = cases_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raise CaptureError(f"cases file not found: {path}") from None
+    except OSError as exc:
+        raise CaptureError(f"cannot read cases file {path}: {exc}") from None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise CaptureError(
+            f"invalid JSON in cases file {path} at line {exc.lineno}, column {exc.colno}: {exc.msg}"
+        ) from None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="sprocguard", description="A safety net for SQL Server stored procedures."
@@ -115,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "suggest":
             _print(service.suggest(args.procedure, args.config), args.json)
         elif args.command == "capture":
-            cases = json.loads(Path(args.cases).read_text(encoding="utf-8"))
+            cases = _load_cases(args.cases)
             _print(
                 service.capture_baseline(
                     args.procedure, cases, args.watch, args.overwrite, args.config
