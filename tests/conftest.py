@@ -162,6 +162,7 @@ def _isolated_environment(monkeypatch):
         "SPROCGUARD_PORT",
         "SPROCGUARD_USER",
         "SPROCGUARD_DATABASE",
+        "SPROCGUARD_BASELINE_DIR",
     ):
         monkeypatch.delenv(name, raising=False)
 

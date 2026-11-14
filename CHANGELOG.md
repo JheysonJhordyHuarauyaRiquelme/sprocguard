@@ -7,6 +7,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- GitHub Action `mode: base-branch`: captures the baselines from the base branch in the same
+  run (inputs `cases`, `base-ref`, `base-setup-scripts`), so nothing has to be committed.
+- GitHub Action input `fail-on-change: false` reports behavior changes without failing.
+- `sprocguard capture-cases <folder or files>` captures every cases file in one connection;
+  the procedure comes from the file name. `--skip-missing` skips procedures that do not exist.
+- `SPROCGUARD_BASELINE_DIR` stores baselines in another folder.
+- Integration jobs that run `mode: base-branch` against a real SQL Server.
 - `sprocguard verify --only-failures` keeps passing procedures to one line and shows
   only failing cases and their differences in text output (#9, thanks @enidchen0125).
 - Troubleshooting section in the READMEs (#11, thanks @stepheng223).
@@ -16,6 +23,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   one-line error instead of a Python traceback (#10, thanks @bfs2021).
 
 ### Changed
+- The helper that reads cases files moved from `cli.py` to the new `cases` module, so the CLI
+  and `capture-cases` share it.
 - READMEs: "Three ways to use it" overview, GitHub Marketplace badge and links; the Spanish
   README gains badges, the roadmap and the pymssql install line.
 

@@ -83,21 +83,33 @@ sprocguard verify dbo.usp_PlaceOrder                # detecta el cambio de redon
 
 Este repositorio también es una GitHub Action, publicada en el
 [GitHub Marketplace](https://github.com/marketplace/actions/sprocguard-verify). Levanta un SQL Server temporal en Docker,
-construye tu base de datos con los scripts de tu repositorio y ejecuta `sprocguard verify`
-contra los baselines que guardaste. El pull request falla si un procedure cambió su
-comportamiento, y el resumen del job muestra cada diferencia.
+construye tu base de datos con los scripts de tu repositorio y ejecuta `sprocguard verify`. El
+pull request falla si un procedure cambió su comportamiento, y el resumen del job muestra cada
+diferencia.
+
+**Comparar con la rama base** (`mode: base-branch`, desde la v0.3.0). No hay que preparar nada
+en tu máquina: la action construye la base con los scripts de la rama base, captura los
+baselines con tus archivos de casos, la vuelve a construir con los scripts del pull request y
+verifica.
 
 ```yaml
 - uses: actions/checkout@v7
-- uses: JheysonJhordyHuarauyaRiquelme/sprocguard@v0.2.0
+- uses: JheysonJhordyHuarauyaRiquelme/sprocguard@v0.3.0
   with:
+    mode: base-branch
+    cases: db/cases
     setup-scripts: |
       db/schema.sql
       db/seed.sql
       db/procedures/*.sql
 ```
 
-Para usarla, guarda en el repositorio los scripts que crean una copia de desarrollo de tu base
+`db/cases` tiene un archivo por procedure con su nombre (`usp_PlaceOrder.json` es
+`dbo.usp_PlaceOrder`), en el mismo formato que `sprocguard capture --cases`. Los procedures que
+todavía no existen en la rama base se omiten. Tus scripts deben crear siempre los mismos datos
+de prueba, porque los dos lados se comparan sobre los datos que construyen.
+
+**Comparar con baselines guardados** (el modo por defecto). Guarda en el repositorio los scripts que crean una copia de desarrollo de tu base
 (tablas, datos de prueba y procedures), captura los baselines en tu máquina sobre una base
 creada con esos mismos scripts y sube la carpeta `.sprocguard/baselines` junto con un archivo
 de configuración. La action reemplaza la conexión por la del servidor temporal; las reglas de
@@ -156,11 +168,11 @@ se ejecuta en las bases que listas, a propósito. Si es una base de desarrollo, 
 - [ ] Exportación a tSQLt con `FakeTable` para procedures que modifican datos
 - [ ] Parámetros con valores de tabla (table-valued parameters)
 - [ ] `sprocguard impact <tabla>`: verificar todos los procedures que usan una tabla que vas a cambiar
-- [ ] Verificar un pull request sin baselines guardados: capturar en la rama base y verificar en la rama del PR
 - [ ] Soporte para PostgreSQL
 - [x] Publicación en PyPI y en el MCP Registry
 - [x] GitHub Action que verifica los procedures en cada pull request
 - [x] Publicación de la Action en el GitHub Marketplace
+- [x] Verificar un pull request sin baselines guardados (`mode: base-branch`)
 
 ## Contribuir
 

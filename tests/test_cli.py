@@ -169,3 +169,42 @@ def test_capture_reports_invalid_cases_json_with_position(cli, capsys):
     assert "bad.json" in err
     assert "line 1" in err
     assert "column" in err
+
+
+def _cases_folder(root, *, with_new_procedure):
+    folder = root / "db-cases"
+    folder.mkdir()
+    (folder / "usp_PlaceOrder.json").write_text(json.dumps(PLACE_ORDER_CASES), encoding="utf-8")
+    (folder / "dbo.usp_GetCustomerOrders.json").write_text(
+        json.dumps([{"name": "VIP orders", "params": {"@CustomerId": 1}}]), encoding="utf-8"
+    )
+    if with_new_procedure:
+        (folder / "usp_NotCreatedYet.json").write_text(
+            json.dumps([{"name": "x", "params": {}}]), encoding="utf-8"
+        )
+    return folder
+
+
+def test_capture_cases_captures_every_file_in_a_folder(cli, capsys):
+    folder = _cases_folder(cli.parent, with_new_procedure=False)
+
+    assert main(["capture-cases", str(folder)]) == 0
+    out = capsys.readouterr().out
+    assert "captured  dbo.usp_GetCustomerOrders: 1 case(s)" in out
+    assert f"captured  dbo.usp_PlaceOrder: {len(PLACE_ORDER_CASES)} case(s)" in out
+
+    assert main(["verify"]) == 0
+    assert main(["capture-cases", str(folder)]) == 1  # baselines exist: needs --overwrite
+    assert main(["capture-cases", str(folder), "--overwrite"]) == 0
+
+
+def test_capture_cases_skips_missing_procedures_only_when_asked(cli, capsys):
+    folder = _cases_folder(cli.parent, with_new_procedure=True)
+
+    assert main(["capture-cases", str(folder)]) == 1
+    assert "usp_NotCreatedYet' was not found" in capsys.readouterr().err
+
+    assert main(["--json", "capture-cases", str(folder), "--skip-missing", "--overwrite"]) == 0
+    results = {r["procedure"]: r for r in json.loads(capsys.readouterr().out)}
+    assert results["dbo.usp_NotCreatedYet"]["status"] == "skipped"
+    assert results["dbo.usp_PlaceOrder"]["status"] == "captured"

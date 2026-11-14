@@ -3,7 +3,8 @@ name: Integration
 # Runs sprocguard against a real SQL Server through the repository's own
 # GitHub Action: build the demo database, capture baselines, check that the
 # unchanged procedures pass, then deploy a "harmless refactor" and check that
-# sprocguard catches it.
+# sprocguard catches it. The base-branch jobs do the same with mode: base-branch,
+# which captures the baselines from another commit in the same run.
 
 on:
   push:
@@ -65,3 +66,51 @@ jobs:
             exit 1
           fi
           grep -q "VIP customer gets 10% off" "$RUNNER_TEMP/regression.md"
+
+  # mode: base-branch captures the baselines from another commit in the same run.
+  # Here the "base" is the commit under test itself, so the comparison is predictable.
+  base-branch-unchanged:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Same scripts on both sides pass
+        uses: ./
+        with:
+          mode: base-branch
+          base-ref: ${{ github.sha }}
+          config: examples/sprocguard.ci.toml
+          cases: examples/cases
+          setup-scripts: examples/demo.sql
+
+  base-branch-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: The pull request side adds the "harmless refactor"
+        id: sprocguard
+        uses: ./
+        with:
+          mode: base-branch
+          base-ref: ${{ github.sha }}
+          config: examples/sprocguard.ci.toml
+          cases: examples/cases
+          base-setup-scripts: examples/demo.sql
+          setup-scripts: |
+            examples/demo.sql
+            examples/regression.sql
+          fail-on-change: "false"
+
+      - name: sprocguard reports the change
+        env:
+          PASSED: ${{ steps.sprocguard.outputs.passed }}
+          REPORT: ${{ steps.sprocguard.outputs.report }}
+        run: |
+          if [ "$PASSED" != "false" ]; then
+            echo "::error::Expected the refactor in examples/regression.sql to be reported (passed=$PASSED)."
+            exit 1
+          fi
+          grep -q "VIP customer gets 10% off" "$REPORT"

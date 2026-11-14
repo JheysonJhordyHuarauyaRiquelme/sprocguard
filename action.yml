@@ -1,11 +1,31 @@
 name: sprocguard verify
-description: Fail a pull request when a SQL Server stored procedure stops behaving like its committed baseline.
+description: Fail a pull request when a SQL Server stored procedure behaves differently than on the base branch or its baseline.
 author: Jheyson Huarauya Riquelme
 branding:
   icon: shield
   color: blue
 
 inputs:
+  mode:
+    description: '"committed" verifies against the baselines committed in the repository. "base-branch" captures baselines from the base branch in the same run (needs cases and setup-scripts), so nothing has to be committed.'
+    required: false
+    default: committed
+  cases:
+    description: Cases files or folders, one per line, used by mode "base-branch". Each file is named after its procedure (usp_PlaceOrder.json is dbo.usp_PlaceOrder).
+    required: false
+    default: ""
+  base-ref:
+    description: Branch, tag or commit to capture the baselines from in mode "base-branch". Defaults to the pull request's base branch.
+    required: false
+    default: ${{ github.base_ref }}
+  base-setup-scripts:
+    description: Scripts that build the database on the base branch, in mode "base-branch". Defaults to setup-scripts.
+    required: false
+    default: ""
+  fail-on-change:
+    description: Set to "false" to report behavior changes in the job summary without failing the step.
+    required: false
+    default: "true"
   config:
     description: Path to your sprocguard.toml. Its [safety] and [storage] settings are used as they are; the connection is replaced by the throwaway server.
     required: false
@@ -147,38 +167,117 @@ runs:
         } >> "$GITHUB_ENV"
         echo "SQL Server is ready with an empty database [$DATABASE]."
 
+    - name: Check the inputs
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        CASES: ${{ inputs.cases }}
+        BASE_REF: ${{ inputs.base-ref }}
+        SCRIPTS: ${{ inputs.setup-scripts }}
+      run: |
+        case "$MODE" in
+          committed) ;;
+          base-branch)
+            missing=""
+            [ -z "$(echo "$CASES" | xargs)" ] && missing="$missing cases"
+            [ -z "$(echo "$SCRIPTS" | xargs)" ] && missing="$missing setup-scripts"
+            [ -z "$BASE_REF" ] && missing="$missing base-ref (it is only automatic on pull_request events)"
+            [ -z "${SPROCGUARD_SQLCMD:-}" ] && missing="$missing start-sql-server"
+            if [ -n "$missing" ]; then
+              echo "::error title=sprocguard::mode base-branch needs:$missing"
+              exit 1
+            fi
+            ;;
+          *)
+            echo "::error title=sprocguard::Unknown mode '$MODE'. Use committed or base-branch."
+            exit 1
+            ;;
+        esac
+
+    - name: Check out the base branch
+      if: inputs.mode == 'base-branch'
+      shell: bash
+      env:
+        BASE_REF: ${{ inputs.base-ref }}
+      run: |
+        base_dir="$RUNNER_TEMP/sprocguard-base"
+        if [ -d "$base_dir" ]; then
+          git worktree remove --force "$base_dir"
+        fi
+        git fetch --no-tags --depth=1 origin "$BASE_REF"
+        git worktree add --detach "$base_dir" FETCH_HEAD
+        echo "Base branch $BASE_REF is at $(git -C "$base_dir" rev-parse --short HEAD)."
+
+    - name: Build the database from the base branch
+      if: inputs.mode == 'base-branch'
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        BASE_SCRIPTS: ${{ inputs.base-setup-scripts }}
+        SCRIPTS: ${{ inputs.setup-scripts }}
+        DATABASE: ${{ steps.settings.outputs.database }}
+      run: |
+        bash "$ACTION_PATH/action/run-scripts.sh" "$RUNNER_TEMP/sprocguard-base" "${BASE_SCRIPTS:-$SCRIPTS}"
+
+    - name: Capture baselines on the base branch
+      id: capture
+      if: inputs.mode == 'base-branch'
+      shell: bash
+      env:
+        CASES: ${{ inputs.cases }}
+        BASE_REF: ${{ inputs.base-ref }}
+      run: |
+        baselines="$RUNNER_TEMP/sprocguard-baselines"
+        rm -rf "$baselines"
+        export SPROCGUARD_BASELINE_DIR="$baselines"
+        echo "SPROCGUARD_BASELINE_DIR=$baselines" >> "$GITHUB_ENV"
+
+        shopt -s nullglob globstar
+        paths=()
+        while IFS= read -r pattern; do
+          pattern="$(echo "$pattern" | xargs)"
+          [ -z "$pattern" ] && continue
+          # shellcheck disable=SC2206
+          matches=( $pattern )
+          if [ ${#matches[@]} -eq 0 ]; then
+            echo "::error title=sprocguard::No cases file or folder matches '$pattern'."
+            exit 1
+          fi
+          paths+=( "${matches[@]}" )
+        done <<< "$CASES"
+
+        sprocguard capture-cases --skip-missing --overwrite "${paths[@]}"
+        captured=$(find "$baselines" -name '*.json' 2>/dev/null | wc -l)
+        echo "captured=$captured" >> "$GITHUB_OUTPUT"
+        echo "Captured $captured baseline(s) on $BASE_REF."
+
+    - name: Reset the database
+      if: inputs.mode == 'base-branch'
+      shell: bash
+      env:
+        DATABASE: ${{ steps.settings.outputs.database }}
+      run: |
+        quoted="${DATABASE//]/]]}"
+        literal="${DATABASE//\'/\'\'}"
+        docker exec sprocguard-sql "$SPROCGUARD_SQLCMD" -S localhost -U sa \
+          -P "$SPROCGUARD_PASSWORD" -C -b -d master -Q "
+            IF DB_ID(N'$literal') IS NOT NULL
+            BEGIN
+              ALTER DATABASE [$quoted] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+              DROP DATABASE [$quoted];
+            END;
+            CREATE DATABASE [$quoted];"
+        echo "Database [$DATABASE] recreated for the pull request's scripts."
+
     - name: Run setup scripts
       if: inputs.setup-scripts != ''
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         SCRIPTS: ${{ inputs.setup-scripts }}
         DATABASE: ${{ steps.settings.outputs.database }}
       run: |
-        if [ -z "${SPROCGUARD_SQLCMD:-}" ]; then
-          echo "::error title=sprocguard::setup-scripts needs the SQL Server started by this action (start-sql-server: true in this or an earlier step)."
-          exit 1
-        fi
-        shopt -s nullglob globstar
-        while IFS= read -r pattern; do
-          pattern="$(echo "$pattern" | xargs)"
-          [ -z "$pattern" ] && continue
-          # Intentionally unquoted so glob patterns expand; nullglob drops non-matches.
-          # shellcheck disable=SC2206
-          files=( $pattern )
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "::error title=sprocguard::No file matches '$pattern'."
-            exit 1
-          fi
-          for file in "${files[@]}"; do
-            echo "::group::$file"
-            docker cp "$file" sprocguard-sql:/tmp/sprocguard-script.sql
-            # -I: QUOTED_IDENTIFIER ON, like SSMS. -f 65001: read the script as UTF-8.
-            docker exec sprocguard-sql "$SPROCGUARD_SQLCMD" -S localhost -U sa \
-              -P "$SPROCGUARD_PASSWORD" -C -b -I -f 65001 -d "$DATABASE" \
-              -i /tmp/sprocguard-script.sql
-            echo "::endgroup::"
-          done
-        done <<< "$SCRIPTS"
+        bash "$ACTION_PATH/action/run-scripts.sh" "$GITHUB_WORKSPACE" "$SCRIPTS"
 
     - name: Verify procedures
       id: verify
@@ -186,9 +285,24 @@ runs:
       shell: bash
       env:
         PROCEDURES: ${{ inputs.procedures }}
+        MODE: ${{ inputs.mode }}
+        BASE_REF: ${{ inputs.base-ref }}
+        CAPTURED: ${{ steps.capture.outputs.captured }}
+        FAIL_ON_CHANGE: ${{ inputs.fail-on-change }}
       run: |
         report="$RUNNER_TEMP/sprocguard-report.md"
         read -r -a names <<< "$(echo "$PROCEDURES" | tr '\n' ' ')"
+
+        if [ "$MODE" = "base-branch" ]; then
+          if [ "${CAPTURED:-0}" = "0" ]; then
+            echo "None of the procedures in the cases files exist on $BASE_REF yet: nothing to compare." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "_Baselines captured on \`$BASE_REF\` in this run._" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+        fi
 
         set +e
         sprocguard verify --markdown-report "$report" "${names[@]}"
@@ -203,6 +317,10 @@ runs:
           0) echo "passed=true" >> "$GITHUB_OUTPUT" ;;
           2)
             echo "passed=false" >> "$GITHUB_OUTPUT"
+            if [ "$FAIL_ON_CHANGE" != "true" ]; then
+              echo "::warning title=sprocguard::A stored procedure no longer behaves like its baseline. See the job summary for the differences."
+              exit 0
+            fi
             echo "::error title=sprocguard::A stored procedure no longer behaves like its baseline. See the job summary for the differences."
             ;;
         esac

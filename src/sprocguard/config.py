@@ -131,6 +131,9 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
     )
     safety = _build(SafetyConfig, _section(data, "safety"), "safety")
     storage = _build(StorageConfig, _section(data, "storage"), "storage")
+    # Lets CI keep temporary baselines outside the repository (see the base-branch mode).
+    if os.environ.get("SPROCGUARD_BASELINE_DIR"):
+        storage.baseline_dir = os.environ["SPROCGUARD_BASELINE_DIR"]
 
     if not connection.odbc and not connection.server:
         raise ConfigError("Set either [connection].odbc or [connection].server.")
