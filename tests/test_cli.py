@@ -91,3 +91,24 @@ def test_verify_writes_a_markdown_report(cli, db, tmp_path, capsys):
     assert text.startswith("## sprocguard")
     assert "| `dbo.usp_PlaceOrder` | **Changed** |" in text
     assert "VIP customer gets 10% off" in text
+
+
+def test_capture_reports_a_missing_cases_file(cli, capsys):
+    missing = cli.parent / "nope.json"
+
+    assert main(["capture", "dbo.usp_PlaceOrder", "--cases", str(missing)]) == 1
+    err = capsys.readouterr().err
+    assert "sprocguard: cases file not found:" in err
+    assert "nope.json" in err
+
+
+def test_capture_reports_invalid_cases_json_with_position(cli, capsys):
+    bad = cli.parent / "bad.json"
+    bad.write_text('[{"name": "x",}', encoding="utf-8")
+
+    assert main(["capture", "dbo.usp_PlaceOrder", "--cases", str(bad)]) == 1
+    err = capsys.readouterr().err
+    assert "sprocguard:" in err
+    assert "bad.json" in err
+    assert "line 1" in err
+    assert "column" in err
