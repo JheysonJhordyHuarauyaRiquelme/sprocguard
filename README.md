@@ -234,6 +234,56 @@ For read-only procedures, `sprocguard tsqlt <proc>` writes a `.sql` file with on
 [tSQLt](https://tsqlt.org) test per case, using `tSQLt.AssertEqualsTable` and
 `tSQLt.ExpectException`. Volatile columns are left out of the comparison.
 
+## Troubleshooting
+
+Common connection problems and how to fix them.
+
+**ODBC driver not found**
+
+Check which drivers are installed:
+
+```powershell
+Get-OdbcDriver | Where-Object Name -like "*SQL Server*"
+```
+
+If `ODBC Driver 17 for SQL Server` is the one installed, use it in
+`sprocguard.toml` in place of 18:
+
+```toml
+odbc = "Driver={ODBC Driver 17 for SQL Server};Server=localhost;Database=DemoShop;Trusted_Connection=yes;TrustServerCertificate=yes"
+```
+
+**Login failed (SQL authentication)**
+
+Install the pymssql extra and set the password in the environment variable
+named by `password_env` (default `SPROCGUARD_PASSWORD`):
+
+```bash
+pip install "sprocguard[pymssql]"
+export SPROCGUARD_PASSWORD=...
+```
+
+In `sprocguard.toml`, set `server`, `user`, and `password_env`.
+
+**"database not allowed"**
+
+sprocguard refuses to connect to any database not listed in
+`[safety].allowed_databases`. Add the database:
+
+```toml
+[safety]
+allowed_databases = ["DemoShop", "MyOtherDb"]
+```
+
+**Certificate errors with ODBC Driver 18**
+
+For local development servers, add `TrustServerCertificate=yes` to the ODBC
+connection string:
+
+```toml
+odbc = "Driver={ODBC Driver 18 for SQL Server};Server=localhost;Database=DemoShop;Trusted_Connection=yes;TrustServerCertificate=yes"
+```
+
 ## Limitations
 
 - Table-valued parameters are not supported yet.
