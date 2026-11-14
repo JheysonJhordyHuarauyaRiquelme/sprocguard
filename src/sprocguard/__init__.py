@@ -1,3 +1,3 @@
 """sprocguard: a safety net for SQL Server stored procedures."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
