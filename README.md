@@ -163,12 +163,17 @@ sprocguard suggest <proc>                         suggest parameter values
 sprocguard capture <proc> --cases cases.json      capture a baseline  [--watch schema.table ...] [--overwrite]
 sprocguard verify [<proc> ...]                    verify one, several or all baselines (exit 2 if behavior changed)
                                                   [--markdown-report report.md]
+                                                  [--only-failures]
 sprocguard tsqlt <proc>                           generate tSQLt tests (read-only procedures)
 sprocguard list                                   list baselines
 sprocguard serve                                  run the MCP server (stdio)
 ```
 
 Add `--json` for machine-readable output.
+
+Use `sprocguard verify --only-failures` to keep passing procedures to one `PASS` line
+and show only failing cases with their differences for changed procedures. JSON output
+and Markdown reports are unaffected.
 
 ## Verify on every pull request (GitHub Action)
 
