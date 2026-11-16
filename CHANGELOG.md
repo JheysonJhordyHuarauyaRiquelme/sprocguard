@@ -6,6 +6,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Unit tests for `db.normalize_value()` (#6).
+
 ## [0.3.0] - 2026-11-14
 
 ### Added
