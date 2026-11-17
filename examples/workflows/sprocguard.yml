@@ -1,0 +1,26 @@
+# Copy this file into .github/workflows/ in your repository.
+# Commit sprocguard.toml with your test database in [safety].allowed_databases,
+# and adjust the db/ paths below to match your repository.
+name: Stored procedures
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  sprocguard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: JheysonJhordyHuarauyaRiquelme/sprocguard@v0.3.0
+        with:
+          # Capture baselines from the PR base branch, then verify the PR changes.
+          mode: base-branch
+          # One cases file per procedure, e.g. usp_PlaceOrder.json.
+          cases: db/cases
+          # Build the throwaway database in this order on both branches.
+          setup-scripts: |
+            db/schema.sql
+            db/seed.sql
+            db/procedures/*.sql
