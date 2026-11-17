@@ -191,6 +191,9 @@ It compares against one of two references:
 
 ### Compare with the base branch
 
+Copy [the complete workflow](examples/workflows/sprocguard.yml) into your repository's
+`.github/workflows/` directory and adjust the database script and cases paths.
+
 The action builds the database with the scripts of the base branch, captures baselines with
 your cases files, rebuilds the database with the scripts of the pull request and verifies.
 
